@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Check, Clipboard, ClipboardCheck, FileUp, Gauge, Route as RouteIcon, Settings, Sparkles, Upload } from 'lucide-react';
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
 
 type Endpoint = { method: string; path: string; variants: number; hasDefault: boolean };
@@ -27,7 +28,7 @@ function Card(props: {
   );
 }
 
-function Tab({ to, label }: { to: string; label: string }) {
+function Tab({ to, label, icon }: { to: string; label: string; icon?: React.ReactNode }) {
   return (
     <NavLink
       to={to}
@@ -37,7 +38,10 @@ function Tab({ to, label }: { to: string; label: string }) {
         }`
       }
     >
-      {label}
+      <span className="inline-flex items-center gap-2">
+        {icon}
+        <span>{label}</span>
+      </span>
     </NavLink>
   );
 }
@@ -214,22 +218,22 @@ export function App() {
       <header className="rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900 to-zinc-950 p-6 shadow-glow">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Mock BFF Admin</h1>
+            <h1 className="text-3xl font-bold tracking-tight inline-flex items-center gap-3"><Sparkles className="h-7 w-7 text-brand-400" />Mock BFF Admin</h1>
             <p className="mt-2 text-sm text-zinc-400">Professional control plane for HAR ingest, variant curation, and AI-backed mocking.</p>
             <p className="mt-1 text-xs text-zinc-500">Route: {location.pathname}{location.hash || '#/'}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => copyLink('current')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800">{copied === 'current' ? 'Copied' : 'Copy current'}</button>
-            <button onClick={() => copyLink('dashboard')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800">{copied === 'dashboard' ? 'Copied' : 'Copy dashboard'}</button>
-            <button onClick={() => copyLink('variants')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800">{copied === 'variants' ? 'Copied' : 'Copy variants'}</button>
-            <button onClick={() => copyLink('settings')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800">{copied === 'settings' ? 'Copied' : 'Copy settings'}</button>
+            <button onClick={() => copyLink('current')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800 inline-flex items-center gap-2">{copied === 'current' ? <ClipboardCheck className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}{copied === 'current' ? 'Copied' : 'Copy current'}</button>
+            <button onClick={() => copyLink('dashboard')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800 inline-flex items-center gap-2">{copied === 'dashboard' ? <Check className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}{copied === 'dashboard' ? 'Copied' : 'Copy dashboard'}</button>
+            <button onClick={() => copyLink('variants')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800 inline-flex items-center gap-2">{copied === 'variants' ? <Check className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}{copied === 'variants' ? 'Copied' : 'Copy variants'}</button>
+            <button onClick={() => copyLink('settings')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800 inline-flex items-center gap-2">{copied === 'settings' ? <Check className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}{copied === 'settings' ? 'Copied' : 'Copy settings'}</button>
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <Tab to="/" label="Dashboard" />
-          <Tab to="/variants" label="Variants" />
-          <Tab to="/settings" label="Settings" />
+          <Tab to="/" label="Dashboard" icon={<Gauge className="h-4 w-4" />} />
+          <Tab to="/variants" label="Variants" icon={<RouteIcon className="h-4 w-4" />} />
+          <Tab to="/settings" label="Settings" icon={<Settings className="h-4 w-4" />} />
         </div>
       </header>
 
@@ -246,11 +250,11 @@ export function App() {
           element={
             <>
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <Card title="Import HAR" subtitle="Upload real traffic captures to generate endpoint variants." tone="highlight" actions={<button disabled={busy || !harFile} onClick={() => uploadFile('/admin/har', harFile, 'HAR imported')} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Upload HAR</button>}>
+                <Card title="Import HAR" subtitle="Upload real traffic captures to generate endpoint variants." tone="highlight" actions={<button disabled={busy || !harFile} onClick={() => uploadFile('/admin/har', harFile, 'HAR imported')} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50 inline-flex items-center gap-2"><Upload className="h-4 w-4" />Upload HAR</button>}>
                   <input type="file" accept=".har,.json" onChange={(e) => setHarFile(e.target.files?.[0] ?? null)} className="block w-full text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-brand-600 file:px-4 file:py-2 file:text-white hover:file:bg-brand-500" />
                 </Card>
 
-                <Card title="Import OpenAPI" subtitle="Upload JSON/YAML contract for validation and guidance." tone="highlight" actions={<button disabled={busy || !openApiFile} onClick={() => uploadFile('/admin/openapi', openApiFile, 'OpenAPI imported')} className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Upload OpenAPI</button>}>
+                <Card title="Import OpenAPI" subtitle="Upload JSON/YAML contract for validation and guidance." tone="highlight" actions={<button disabled={busy || !openApiFile} onClick={() => uploadFile('/admin/openapi', openApiFile, 'OpenAPI imported')} className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium disabled:opacity-50 inline-flex items-center gap-2"><FileUp className="h-4 w-4" />Upload OpenAPI</button>}>
                   <input type="file" accept=".json,.yaml,.yml" onChange={(e) => setOpenApiFile(e.target.files?.[0] ?? null)} className="block w-full text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-white hover:file:bg-indigo-500" />
                 </Card>
               </div>

@@ -1,15 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
 
 type Endpoint = { method: string; path: string; variants: number; hasDefault: boolean };
 type VariantMeta = { id: string; file: string; source?: string; status?: number; createdAt?: string };
 type ReqLog = { at: string; method: string; path: string; match: string; status: number };
 
-function Card(props: { title: string; children: React.ReactNode; actions?: React.ReactNode }) {
+function Card(props: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  actions?: React.ReactNode;
+  tone?: 'default' | 'highlight';
+}) {
+  const toneClass = props.tone === 'highlight' ? 'border-brand-500/40 bg-gradient-to-b from-zinc-900 to-zinc-950' : 'border-zinc-800 bg-zinc-900/70';
   return (
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 shadow-glow p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">{props.title}</h2>
+    <section className={`rounded-2xl border ${toneClass} shadow-glow p-5`}>
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">{props.title}</h2>
+          {props.subtitle ? <p className="mt-1 text-sm text-zinc-400">{props.subtitle}</p> : null}
+        </div>
         {props.actions}
       </div>
       {props.children}
@@ -22,7 +32,9 @@ function Tab({ to, label }: { to: string; label: string }) {
     <NavLink
       to={to}
       className={({ isActive }) =>
-        `rounded-lg px-3 py-2 text-sm border ${isActive ? 'border-brand-500 bg-brand-500/10 text-brand-300' : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'}`
+        `rounded-xl px-3 py-2 text-sm border transition ${
+          isActive ? 'border-brand-500 bg-brand-500/10 text-brand-300' : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+        }`
       }
     >
       {label}
@@ -30,8 +42,13 @@ function Tab({ to, label }: { to: string; label: string }) {
   );
 }
 
+function Pill({ children }: { children: React.ReactNode }) {
+  return <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300">{children}</span>;
+}
+
 export function App() {
   const location = useLocation();
+
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [requests, setRequests] = useState<ReqLog[]>([]);
   const [misses, setMisses] = useState<any[]>([]);
@@ -43,7 +60,13 @@ export function App() {
   const [variantList, setVariantList] = useState<VariantMeta[]>([]);
   const [selectedVariantId, setSelectedVariantId] = useState('');
   const [variantEditor, setVariantEditor] = useState('');
+
   const [copied, setCopied] = useState('');
+  const [toast, setToast] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const [harFile, setHarFile] = useState<File | null>(null);
+  const [openApiFile, setOpenApiFile] = useState<File | null>(null);
 
   useEffect(() => {
     refresh();
@@ -51,15 +74,64 @@ export function App() {
     return () => clearInterval(id);
   }, []);
 
+  const stats = useMemo(() => {
+    const totalVariants = endpoints.reduce((acc, e) => acc + e.variants, 0);
+    return {
+      endpoints: endpoints.length,
+      variants: totalVariants,
+      misses: misses.length,
+      requests: requests.length,
+    };
+  }, [endpoints, misses, requests]);
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(''), 1800);
+  }
+
   async function refresh() {
     await Promise.all([loadEndpoints(), loadRequests(), loadMisses(), loadConfig(), loadContext()]);
   }
 
-  async function loadEndpoints() { setEndpoints(await (await fetch('/admin/endpoints')).json()); }
-  async function loadRequests() { const data = await (await fetch('/admin/requests?limit=100')).json(); setRequests(data.rows ?? []); }
-  async function loadMisses() { const data = await (await fetch('/admin/misses')).json(); setMisses(Array.isArray(data) ? data : []); }
-  async function loadConfig() { setConfigText(JSON.stringify(await (await fetch('/admin/config')).json(), null, 2)); }
-  async function loadContext() { const d = await (await fetch('/admin/context')).json(); setContext(d.context || ''); }
+  async function loadEndpoints() {
+    setEndpoints(await (await fetch('/admin/endpoints')).json());
+  }
+
+  async function loadRequests() {
+    const data = await (await fetch('/admin/requests?limit=100')).json();
+    setRequests(data.rows ?? []);
+  }
+
+  async function loadMisses() {
+    const data = await (await fetch('/admin/misses')).json();
+    setMisses(Array.isArray(data) ? data : []);
+  }
+
+  async function loadConfig() {
+    setConfigText(JSON.stringify(await (await fetch('/admin/config')).json(), null, 2));
+  }
+
+  async function loadContext() {
+    const d = await (await fetch('/admin/context')).json();
+    setContext(d.context || '');
+  }
+
+  async function uploadFile(route: string, file: File | null, successMsg: string) {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(route, { method: 'POST', body: fd });
+      if (!res.ok) throw new Error('upload failed');
+      await refresh();
+      showToast(successMsg);
+    } catch {
+      showToast('Upload failed');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function loadVariants(method: string, path: string) {
     setSelectedMethod(method);
@@ -79,117 +151,121 @@ export function App() {
   }
 
   async function saveVariant() {
-    const mock = JSON.parse(variantEditor);
-    await fetch('/admin/variant', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ method: selectedMethod, path: selectedPath, id: selectedVariantId, mock }),
-    });
-    await loadVariants(selectedMethod, selectedPath);
+    setBusy(true);
+    try {
+      const mock = JSON.parse(variantEditor);
+      await fetch('/admin/variant', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ method: selectedMethod, path: selectedPath, id: selectedVariantId, mock }),
+      });
+      await loadVariants(selectedMethod, selectedPath);
+      showToast('Variant saved');
+    } catch {
+      showToast('Variant save failed');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function saveConfig() {
-    const parsed = JSON.parse(configText);
-    await fetch('/admin/config', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(parsed),
-    });
+    setBusy(true);
+    try {
+      const parsed = JSON.parse(configText);
+      await fetch('/admin/config', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(parsed),
+      });
+      showToast('Config saved');
+    } catch {
+      showToast('Config invalid');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function saveContext() {
-    await fetch('/admin/context', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ context }),
-    });
+    setBusy(true);
+    try {
+      await fetch('/admin/context', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ context }),
+      });
+      showToast('Context saved');
+    } catch {
+      showToast('Context save failed');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function copyLink(kind: 'current' | 'dashboard' | 'variants' | 'settings') {
-    const hash =
-      kind === 'current'
-        ? window.location.hash || '#/'
-        : kind === 'dashboard'
-          ? '#/'
-          : kind === 'variants'
-            ? '#/variants'
-            : '#/settings';
-
+    const hash = kind === 'current' ? window.location.hash || '#/' : kind === 'dashboard' ? '#/' : kind === 'variants' ? '#/variants' : '#/settings';
     const url = `${window.location.origin}/-/admin${hash}`;
     await navigator.clipboard.writeText(url);
     setCopied(kind);
-    setTimeout(() => setCopied(''), 1200);
+    setTimeout(() => setCopied(''), 1000);
   }
 
   return (
-    <main className="mx-auto max-w-7xl p-6 space-y-6">
-      <header className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-glow">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+    <main className="mx-auto max-w-7xl p-6 lg:p-8 space-y-6">
+      <header className="rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900 to-zinc-950 p-6 shadow-glow">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold">Mock BFF Admin</h1>
-            <p className="mt-2 text-xs text-zinc-400">Route: {location.pathname}{location.hash || '#/'}</p>
+            <h1 className="text-3xl font-bold tracking-tight">Mock BFF Admin</h1>
+            <p className="mt-2 text-sm text-zinc-400">Professional control plane for HAR ingest, variant curation, and AI-backed mocking.</p>
+            <p className="mt-1 text-xs text-zinc-500">Route: {location.pathname}{location.hash || '#/'}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => copyLink('current')} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800">{copied==='current' ? 'Copied current' : 'Copy current link'}</button>
-            <button onClick={() => copyLink('dashboard')} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800">{copied==='dashboard' ? 'Copied dashboard' : 'Copy dashboard'}</button>
-            <button onClick={() => copyLink('variants')} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800">{copied==='variants' ? 'Copied variants' : 'Copy variants'}</button>
-            <button onClick={() => copyLink('settings')} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800">{copied==='settings' ? 'Copied settings' : 'Copy settings'}</button>
+            <button onClick={() => copyLink('current')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800">{copied === 'current' ? 'Copied' : 'Copy current'}</button>
+            <button onClick={() => copyLink('dashboard')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800">{copied === 'dashboard' ? 'Copied' : 'Copy dashboard'}</button>
+            <button onClick={() => copyLink('variants')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800">{copied === 'variants' ? 'Copied' : 'Copy variants'}</button>
+            <button onClick={() => copyLink('settings')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800">{copied === 'settings' ? 'Copied' : 'Copy settings'}</button>
           </div>
         </div>
-        <div className="mt-4 flex gap-2">
+
+        <div className="mt-4 flex flex-wrap gap-2">
           <Tab to="/" label="Dashboard" />
           <Tab to="/variants" label="Variants" />
           <Tab to="/settings" label="Settings" />
         </div>
       </header>
 
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Pill>Endpoints: {stats.endpoints}</Pill>
+        <Pill>Variants: {stats.variants}</Pill>
+        <Pill>Misses: {stats.misses}</Pill>
+        <Pill>Recent req logs: {stats.requests}</Pill>
+      </div>
+
       <Routes>
         <Route
           path="/"
           element={
             <>
-              <Card title="Endpoints">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <Card title="Import HAR" subtitle="Upload real traffic captures to generate endpoint variants." tone="highlight" actions={<button disabled={busy || !harFile} onClick={() => uploadFile('/admin/har', harFile, 'HAR imported')} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Upload HAR</button>}>
+                  <input type="file" accept=".har,.json" onChange={(e) => setHarFile(e.target.files?.[0] ?? null)} className="block w-full text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-brand-600 file:px-4 file:py-2 file:text-white hover:file:bg-brand-500" />
+                </Card>
+
+                <Card title="Import OpenAPI" subtitle="Upload JSON/YAML contract for validation and guidance." tone="highlight" actions={<button disabled={busy || !openApiFile} onClick={() => uploadFile('/admin/openapi', openApiFile, 'OpenAPI imported')} className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Upload OpenAPI</button>}>
+                  <input type="file" accept=".json,.yaml,.yml" onChange={(e) => setOpenApiFile(e.target.files?.[0] ?? null)} className="block w-full text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-white hover:file:bg-indigo-500" />
+                </Card>
+              </div>
+
+              <Card title="Endpoints" subtitle="Registered endpoint groups currently available for replay.">
                 <div className="overflow-hidden rounded-xl border border-zinc-800">
                   <table className="w-full text-sm">
-                    <thead className="bg-zinc-800/60"><tr><th className="px-3 py-2 text-left">Method</th><th className="px-3 py-2 text-left">Path</th><th className="px-3 py-2">Variants</th></tr></thead>
+                    <thead className="bg-zinc-800/60 text-zinc-300"><tr><th className="px-3 py-2 text-left">Method</th><th className="px-3 py-2 text-left">Path</th><th className="px-3 py-2 text-left">Variants</th><th className="px-3 py-2 text-left">Default</th></tr></thead>
                     <tbody>
                       {endpoints.map((ep, i) => (
-                        <tr key={ep.method + ep.path + i} className="border-t border-zinc-800">
+                        <tr key={ep.method + ep.path + i} className="border-t border-zinc-800 hover:bg-zinc-800/30">
                           <td className="px-3 py-2 font-mono text-brand-300">{ep.method}</td>
                           <td className="px-3 py-2 font-mono">{ep.path}</td>
                           <td className="px-3 py-2">{ep.variants}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-
-              <Card title="Recent Requests">
-                <pre className="max-h-80 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs">{JSON.stringify(requests, null, 2)}</pre>
-              </Card>
-
-              <Card title="Misses">
-                <pre className="max-h-72 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs">{JSON.stringify(misses, null, 2)}</pre>
-              </Card>
-            </>
-          }
-        />
-
-        <Route
-          path="/variants"
-          element={
-            <>
-              <Card title="Endpoints (select one to review variants)">
-                <div className="overflow-hidden rounded-xl border border-zinc-800">
-                  <table className="w-full text-sm">
-                    <thead className="bg-zinc-800/60"><tr><th className="px-3 py-2 text-left">Method</th><th className="px-3 py-2 text-left">Path</th><th className="px-3 py-2"></th></tr></thead>
-                    <tbody>
-                      {endpoints.map((ep, i) => (
-                        <tr key={ep.method + ep.path + i} className="border-t border-zinc-800">
-                          <td className="px-3 py-2 font-mono text-brand-300">{ep.method}</td>
-                          <td className="px-3 py-2 font-mono">{ep.path}</td>
-                          <td className="px-3 py-2"><button className="rounded-lg border border-zinc-700 px-2 py-1" onClick={() => loadVariants(ep.method, ep.path)}>Review</button></td>
+                          <td className="px-3 py-2">{ep.hasDefault ? 'Yes' : 'No'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -198,18 +274,53 @@ export function App() {
               </Card>
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <Card title={`Variants ${selectedMethod} ${selectedPath}`}>
+                <Card title="Recent Requests" subtitle="In-memory rolling logs (newest first).">
+                  <pre className="max-h-72 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs">{JSON.stringify(requests, null, 2)}</pre>
+                </Card>
+                <Card title="Misses" subtitle="Unmatched requests captured during runtime.">
+                  <pre className="max-h-72 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs">{JSON.stringify(misses, null, 2)}</pre>
+                </Card>
+              </div>
+            </>
+          }
+        />
+
+        <Route
+          path="/variants"
+          element={
+            <>
+              <Card title="Endpoint Variant Review" subtitle="Select an endpoint then inspect or edit individual variants.">
+                <div className="overflow-hidden rounded-xl border border-zinc-800">
+                  <table className="w-full text-sm">
+                    <thead className="bg-zinc-800/60 text-zinc-300"><tr><th className="px-3 py-2 text-left">Method</th><th className="px-3 py-2 text-left">Path</th><th className="px-3 py-2 text-left"></th></tr></thead>
+                    <tbody>
+                      {endpoints.map((ep, i) => (
+                        <tr key={ep.method + ep.path + i} className="border-t border-zinc-800 hover:bg-zinc-800/30">
+                          <td className="px-3 py-2 font-mono text-brand-300">{ep.method}</td>
+                          <td className="px-3 py-2 font-mono">{ep.path}</td>
+                          <td className="px-3 py-2"><button className="rounded-lg border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800" onClick={() => loadVariants(ep.method, ep.path)}>Review variants</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <Card title={`Variants ${selectedMethod} ${selectedPath}`} subtitle="Pick a variant to inspect/edit.">
                   <div className="space-y-2 max-h-80 overflow-auto">
-                    {variantList.map(v => (
-                      <button key={v.id} onClick={() => selectVariant(v.id)} className={'w-full rounded-lg border px-3 py-2 text-left ' + (selectedVariantId===v.id ? 'border-brand-500 bg-brand-500/10' : 'border-zinc-700')}>
+                    {variantList.map((v) => (
+                      <button key={v.id} onClick={() => selectVariant(v.id)} className={`w-full rounded-lg border px-3 py-2 text-left transition ${selectedVariantId === v.id ? 'border-brand-500 bg-brand-500/10' : 'border-zinc-700 hover:bg-zinc-800'}`}>
                         <div className="font-mono text-xs">{v.id}</div>
-                        <div className="text-xs text-zinc-400">{v.source} · {v.status}</div>
+                        <div className="text-xs text-zinc-400 mt-1">{v.source} · status {v.status}</div>
                       </button>
                     ))}
+                    {variantList.length === 0 ? <p className="text-sm text-zinc-400">No variants loaded.</p> : null}
                   </div>
                 </Card>
-                <Card title="Variant Editor" actions={<button onClick={saveVariant} disabled={!selectedVariantId} className="rounded-lg bg-brand-600 px-3 py-2 disabled:opacity-50">Save</button>}>
-                  <textarea value={variantEditor} onChange={e => setVariantEditor(e.target.value)} className="h-80 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />
+
+                <Card title="Variant Editor" subtitle={selectedVariantId || 'Select a variant to edit'} actions={<button onClick={saveVariant} disabled={busy || !selectedVariantId} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Save variant</button>}>
+                  <textarea value={variantEditor} onChange={(e) => setVariantEditor(e.target.value)} className="h-80 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />
                 </Card>
               </div>
             </>
@@ -220,16 +331,18 @@ export function App() {
           path="/settings"
           element={
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              <Card title="Config" actions={<button onClick={saveConfig} className="rounded-lg bg-brand-600 px-3 py-2">Save</button>}>
-                <textarea value={configText} onChange={e => setConfigText(e.target.value)} className="h-80 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />
+              <Card title="Runtime Config" subtitle="Live config editor (AI mode, seeds, redaction, openapi mode)." actions={<button onClick={saveConfig} disabled={busy} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Save config</button>}>
+                <textarea value={configText} onChange={(e) => setConfigText(e.target.value)} className="h-80 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />
               </Card>
-              <Card title="Context" actions={<button onClick={saveContext} className="rounded-lg bg-indigo-600 px-3 py-2">Save</button>}>
-                <textarea value={context} onChange={e => setContext(e.target.value)} className="h-80 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />
+              <Card title="Context" subtitle="Continuously updated generation context." actions={<button onClick={saveContext} disabled={busy} className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Save context</button>}>
+                <textarea value={context} onChange={(e) => setContext(e.target.value)} className="h-80 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />
               </Card>
             </div>
           }
         />
       </Routes>
+
+      {toast ? <div className="fixed bottom-6 right-6 rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2 text-sm shadow-lg">{toast}</div> : null}
     </main>
   );
 }

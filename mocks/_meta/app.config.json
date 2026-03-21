@@ -1,0 +1,25 @@
+{
+  "appName": "local-app",
+  "openApiMode": "assist",
+  "aiEnabled": true,
+  "aiModel": "gpt-4o-mini",
+  "ignoredQueryParams": [
+    "_",
+    "cacheBust",
+    "timestamp"
+  ],
+  "redactHeaders": [
+    "authorization",
+    "cookie",
+    "set-cookie",
+    "x-api-key"
+  ],
+  "redactBodyKeys": [
+    "password",
+    "token",
+    "accessToken",
+    "refreshToken",
+    "secret",
+    "apiKey"
+  ]
+}

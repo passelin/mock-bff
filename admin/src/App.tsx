@@ -71,6 +71,7 @@ export function App() {
 
   const [harFile, setHarFile] = useState<File | null>(null);
   const [openApiFile, setOpenApiFile] = useState<File | null>(null);
+  const [editorSplit, setEditorSplit] = useState(40);
 
   useEffect(() => {
     refresh();
@@ -87,6 +88,27 @@ export function App() {
       requests: requests.length,
     };
   }, [endpoints, misses, requests]);
+
+  const configError = useMemo(() => {
+    if (!configText.trim()) return 'Config cannot be empty';
+    try {
+      JSON.parse(configText);
+      return '';
+    } catch (e: any) {
+      return `Invalid JSON: ${e.message}`;
+    }
+  }, [configText]);
+
+  const variantError = useMemo(() => {
+    if (!selectedVariantId) return '';
+    if (!variantEditor.trim()) return 'Variant body is empty';
+    try {
+      JSON.parse(variantEditor);
+      return '';
+    } catch (e: any) {
+      return `Invalid JSON: ${e.message}`;
+    }
+  }, [variantEditor, selectedVariantId]);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -205,6 +227,10 @@ export function App() {
     }
   }
 
+  function go(route: '#/' | '#/variants' | '#/settings') {
+    window.location.hash = route;
+  }
+
   async function copyLink(kind: 'current' | 'dashboard' | 'variants' | 'settings') {
     const hash = kind === 'current' ? window.location.hash || '#/' : kind === 'dashboard' ? '#/' : kind === 'variants' ? '#/variants' : '#/settings';
     const url = `${window.location.origin}/-/admin${hash}`;
@@ -244,6 +270,13 @@ export function App() {
         <Pill>Recent req logs: {stats.requests}</Pill>
       </div>
 
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 flex flex-wrap gap-2 items-center">
+        <span className="text-xs text-zinc-400 mr-2">Quick actions</span>
+        <button onClick={refresh} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs hover:bg-zinc-800">Refresh data</button>
+        <button onClick={() => go('#/variants')} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs hover:bg-zinc-800">Go to variants</button>
+        <button onClick={() => go('#/settings')} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs hover:bg-zinc-800">Go to settings</button>
+      </div>
+
       <Routes>
         <Route
           path="/"
@@ -272,6 +305,7 @@ export function App() {
                           <td className="px-3 py-2">{ep.hasDefault ? 'Yes' : 'No'}</td>
                         </tr>
                       ))}
+                      {endpoints.length === 0 ? <tr><td colSpan={4} className="px-3 py-6 text-sm text-zinc-400">No endpoints yet. Upload a HAR file to get started.</td></tr> : null}
                     </tbody>
                   </table>
                 </div>
@@ -279,10 +313,18 @@ export function App() {
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 <Card title="Recent Requests" subtitle="In-memory rolling logs (newest first).">
-                  <pre className="max-h-72 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs">{JSON.stringify(requests, null, 2)}</pre>
+                  {requests.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-zinc-700 p-6 text-sm text-zinc-400">No requests yet. Hit your mock endpoints to populate this feed.</div>
+                  ) : (
+                    <pre className="max-h-72 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs">{JSON.stringify(requests, null, 2)}</pre>
+                  )}
                 </Card>
                 <Card title="Misses" subtitle="Unmatched requests captured during runtime.">
-                  <pre className="max-h-72 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs">{JSON.stringify(misses, null, 2)}</pre>
+                  {misses.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-zinc-700 p-6 text-sm text-zinc-400">No misses recorded. Nice coverage so far.</div>
+                  ) : (
+                    <pre className="max-h-72 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs">{JSON.stringify(misses, null, 2)}</pre>
+                  )}
                 </Card>
               </div>
             </>
@@ -310,22 +352,34 @@ export function App() {
                 </div>
               </Card>
 
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <Card title={`Variants ${selectedMethod} ${selectedPath}`} subtitle="Pick a variant to inspect/edit.">
-                  <div className="space-y-2 max-h-80 overflow-auto">
-                    {variantList.map((v) => (
-                      <button key={v.id} onClick={() => selectVariant(v.id)} className={`w-full rounded-lg border px-3 py-2 text-left transition ${selectedVariantId === v.id ? 'border-brand-500 bg-brand-500/10' : 'border-zinc-700 hover:bg-zinc-800'}`}>
-                        <div className="font-mono text-xs">{v.id}</div>
-                        <div className="text-xs text-zinc-400 mt-1">{v.source} · status {v.status}</div>
-                      </button>
-                    ))}
-                    {variantList.length === 0 ? <p className="text-sm text-zinc-400">No variants loaded.</p> : null}
-                  </div>
-                </Card>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-zinc-400">Pane split</span>
+                  <input type="range" min={25} max={65} value={editorSplit} onChange={(e) => setEditorSplit(Number(e.target.value))} className="w-56" />
+                  <span className="text-xs text-zinc-500">{editorSplit}% / {100 - editorSplit}%</span>
+                </div>
+                <div className="grid gap-6" style={{ gridTemplateColumns: `minmax(0, ${editorSplit}fr) minmax(0, ${100 - editorSplit}fr)` }}>
+                  <Card title={`Variants ${selectedMethod} ${selectedPath}`} subtitle="Pick a variant to inspect/edit.">
+                    <div className="space-y-2 max-h-80 overflow-auto">
+                      {variantList.map((v) => (
+                        <button key={v.id} onClick={() => selectVariant(v.id)} className={`w-full rounded-lg border px-3 py-2 text-left transition ${selectedVariantId === v.id ? 'border-brand-500 bg-brand-500/10' : 'border-zinc-700 hover:bg-zinc-800'}`}>
+                          <div className="font-mono text-xs">{v.id}</div>
+                          <div className="text-xs text-zinc-400 mt-1">{v.source} · status {v.status}</div>
+                        </button>
+                      ))}
+                      {variantList.length === 0 ? <p className="text-sm text-zinc-400">No variants loaded.</p> : null}
+                    </div>
+                  </Card>
 
-                <Card title="Variant Editor" subtitle={selectedVariantId || 'Select a variant to edit'} actions={<button onClick={saveVariant} disabled={busy || !selectedVariantId} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Save variant</button>}>
-                  <textarea value={variantEditor} onChange={(e) => setVariantEditor(e.target.value)} className="h-80 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />
-                </Card>
+                  <Card
+                    title="Variant Editor"
+                    subtitle={selectedVariantId || 'Select a variant to edit'}
+                    actions={<div className="flex gap-2"><button onClick={() => { try { setVariantEditor(JSON.stringify(JSON.parse(variantEditor), null, 2)); } catch {} }} disabled={!selectedVariantId} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs">Format</button><button onClick={saveVariant} disabled={busy || !selectedVariantId || !!variantError} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Save variant</button></div>}
+                  >
+                    <textarea value={variantEditor} onChange={(e) => setVariantEditor(e.target.value)} className="h-80 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />
+                    {variantError ? <p className="mt-2 text-xs text-rose-400">{variantError}</p> : selectedVariantId ? <p className="mt-2 text-xs text-emerald-400">JSON valid</p> : null}
+                  </Card>
+                </div>
               </div>
             </>
           }
@@ -335,8 +389,9 @@ export function App() {
           path="/settings"
           element={
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              <Card title="Runtime Config" subtitle="Live config editor (AI mode, seeds, redaction, openapi mode)." actions={<button onClick={saveConfig} disabled={busy} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Save config</button>}>
+              <Card title="Runtime Config" subtitle="Live config editor (AI mode, seeds, redaction, openapi mode)." actions={<button onClick={saveConfig} disabled={busy || !!configError} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Save config</button>}>
                 <textarea value={configText} onChange={(e) => setConfigText(e.target.value)} className="h-80 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />
+                {configError ? <p className="mt-2 text-xs text-rose-400">{configError}</p> : <p className="mt-2 text-xs text-emerald-400">JSON valid</p>}
               </Card>
               <Card title="Context" subtitle="Continuously updated generation context." actions={<button onClick={saveContext} disabled={busy} className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Save context</button>}>
                 <textarea value={context} onChange={(e) => setContext(e.target.value)} className="h-80 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />

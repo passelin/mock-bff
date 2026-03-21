@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Route, Routes } from 'react-router-dom';
+import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
 
 type Endpoint = { method: string; path: string; variants: number; hasDefault: boolean };
 type VariantMeta = { id: string; file: string; source?: string; status?: number; createdAt?: string };
@@ -31,6 +31,7 @@ function Tab({ to, label }: { to: string; label: string }) {
 }
 
 export function App() {
+  const location = useLocation();
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [requests, setRequests] = useState<ReqLog[]>([]);
   const [misses, setMisses] = useState<any[]>([]);
@@ -42,6 +43,7 @@ export function App() {
   const [variantList, setVariantList] = useState<VariantMeta[]>([]);
   const [selectedVariantId, setSelectedVariantId] = useState('');
   const [variantEditor, setVariantEditor] = useState('');
+  const [copied, setCopied] = useState('');
 
   useEffect(() => {
     refresh();
@@ -103,10 +105,37 @@ export function App() {
     });
   }
 
+  async function copyLink(kind: 'current' | 'dashboard' | 'variants' | 'settings') {
+    const hash =
+      kind === 'current'
+        ? window.location.hash || '#/'
+        : kind === 'dashboard'
+          ? '#/'
+          : kind === 'variants'
+            ? '#/variants'
+            : '#/settings';
+
+    const url = `${window.location.origin}/-/admin${hash}`;
+    await navigator.clipboard.writeText(url);
+    setCopied(kind);
+    setTimeout(() => setCopied(''), 1200);
+  }
+
   return (
     <main className="mx-auto max-w-7xl p-6 space-y-6">
       <header className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-glow">
-        <h1 className="text-3xl font-bold">Mock BFF Admin</h1>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-bold">Mock BFF Admin</h1>
+            <p className="mt-2 text-xs text-zinc-400">Route: {location.pathname}{location.hash || '#/'}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => copyLink('current')} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800">{copied==='current' ? 'Copied current' : 'Copy current link'}</button>
+            <button onClick={() => copyLink('dashboard')} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800">{copied==='dashboard' ? 'Copied dashboard' : 'Copy dashboard'}</button>
+            <button onClick={() => copyLink('variants')} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800">{copied==='variants' ? 'Copied variants' : 'Copy variants'}</button>
+            <button onClick={() => copyLink('settings')} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800">{copied==='settings' ? 'Copied settings' : 'Copy settings'}</button>
+          </div>
+        </div>
         <div className="mt-4 flex gap-2">
           <Tab to="/" label="Dashboard" />
           <Tab to="/variants" label="Variants" />

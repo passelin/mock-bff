@@ -72,6 +72,7 @@ export function App() {
   const [harFile, setHarFile] = useState<File | null>(null);
   const [openApiFile, setOpenApiFile] = useState<File | null>(null);
   const [editorSplit, setEditorSplit] = useState(40);
+  const [endpointSearch, setEndpointSearch] = useState('');
 
   useEffect(() => {
     refresh();
@@ -88,6 +89,12 @@ export function App() {
       requests: requests.length,
     };
   }, [endpoints, misses, requests]);
+
+  const filteredEndpoints = useMemo(() => {
+    const q = endpointSearch.trim().toLowerCase();
+    if (!q) return endpoints;
+    return endpoints.filter((ep) => `${ep.method} ${ep.path}`.toLowerCase().includes(q));
+  }, [endpoints, endpointSearch]);
 
   const configError = useMemo(() => {
     if (!configText.trim()) return 'Config cannot be empty';
@@ -319,6 +326,14 @@ export function App() {
         <button onClick={refresh} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs hover:bg-zinc-800">Refresh data</button>
         <button onClick={() => go('#/variants')} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs hover:bg-zinc-800">Go to variants</button>
         <button onClick={() => go('#/settings')} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs hover:bg-zinc-800">Go to settings</button>
+        <div className="ml-auto w-full md:w-80">
+          <input
+            value={endpointSearch}
+            onChange={(e) => setEndpointSearch(e.target.value)}
+            placeholder="Search endpoints (method or path)…"
+            className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-zinc-100 placeholder-zinc-500"
+          />
+        </div>
       </div>
 
       <Routes>
@@ -341,11 +356,11 @@ export function App() {
                 subtitle="Registered endpoint groups currently available for replay."
                 actions={<button onClick={clearAllEndpoints} disabled={busy || endpoints.length === 0} className="rounded-xl border border-rose-700 text-rose-300 px-3 py-2 text-xs hover:bg-rose-900/30 disabled:opacity-50">Clear all</button>}
               >
-                <div className="overflow-hidden rounded-xl border border-zinc-800">
+                <div className="overflow-auto max-h-[26rem] rounded-xl border border-zinc-800">
                   <table className="w-full text-sm">
                     <thead className="bg-zinc-800/60 text-zinc-300"><tr><th className="px-3 py-2 text-left">Method</th><th className="px-3 py-2 text-left">Path</th><th className="px-3 py-2 text-left">Variants</th><th className="px-3 py-2 text-left">Default</th><th className="px-3 py-2 text-left"></th></tr></thead>
                     <tbody>
-                      {endpoints.map((ep, i) => (
+                      {filteredEndpoints.map((ep, i) => (
                         <tr key={ep.method + ep.path + i} className="border-t border-zinc-800 hover:bg-zinc-800/30">
                           <td className="px-3 py-2 font-mono text-brand-300">{ep.method}</td>
                           <td className="px-3 py-2 font-mono">{ep.path}</td>
@@ -354,7 +369,7 @@ export function App() {
                           <td className="px-3 py-2"><button onClick={() => clearEndpoint(ep.method, ep.path)} className="rounded-lg border border-rose-700 text-rose-300 px-2 py-1 text-xs hover:bg-rose-900/30">Clear</button></td>
                         </tr>
                       ))}
-                      {endpoints.length === 0 ? <tr><td colSpan={5} className="px-3 py-6 text-sm text-zinc-400">No endpoints yet. Upload a HAR file to get started.</td></tr> : null}
+                      {filteredEndpoints.length === 0 ? <tr><td colSpan={5} className="px-3 py-6 text-sm text-zinc-400">No matching endpoints.</td></tr> : null}
                     </tbody>
                   </table>
                 </div>
@@ -385,11 +400,11 @@ export function App() {
           element={
             <>
               <Card title="Endpoint Variant Review" subtitle="Select an endpoint then inspect or edit individual variants.">
-                <div className="overflow-hidden rounded-xl border border-zinc-800">
+                <div className="overflow-auto max-h-[26rem] rounded-xl border border-zinc-800">
                   <table className="w-full text-sm">
                     <thead className="bg-zinc-800/60 text-zinc-300"><tr><th className="px-3 py-2 text-left">Method</th><th className="px-3 py-2 text-left">Path</th><th className="px-3 py-2 text-left"></th><th className="px-3 py-2 text-left"></th></tr></thead>
                     <tbody>
-                      {endpoints.map((ep, i) => (
+                      {filteredEndpoints.map((ep, i) => (
                         <tr key={ep.method + ep.path + i} className="border-t border-zinc-800 hover:bg-zinc-800/30">
                           <td className="px-3 py-2 font-mono text-brand-300">{ep.method}</td>
                           <td className="px-3 py-2 font-mono">{ep.path}</td>
@@ -397,6 +412,7 @@ export function App() {
                           <td className="px-3 py-2"><button onClick={() => clearEndpoint(ep.method, ep.path)} className="rounded-lg border border-rose-700 text-rose-300 px-2 py-1 text-xs hover:bg-rose-900/30">Clear</button></td>
                         </tr>
                       ))}
+                      {filteredEndpoints.length === 0 ? <tr><td colSpan={4} className="px-3 py-6 text-sm text-zinc-400">No matching endpoints.</td></tr> : null}
                     </tbody>
                   </table>
                 </div>

@@ -131,6 +131,23 @@ export async function createApp(options: CreateAppOptions) {
     return index.map((e) => ({ method: e.method, path: e.path, variants: e.variants.length, hasDefault: Boolean(e.defaultVariant) }));
   });
 
+  app.delete<{ Querystring: { method?: string; path?: string } }>("/admin/endpoint", async (req, reply) => {
+    const method = req.query.method?.toUpperCase();
+    const apiPath = req.query.path;
+    if (!method || !apiPath) return reply.code(400).send({ error: "method and path query params are required" });
+
+    await storage.clearEndpoint(method, apiPath);
+    const index = await storage.readIndex();
+    const next = index.filter((e) => !(e.method === method && e.path === apiPath));
+    await storage.writeIndex(next);
+    return { cleared: true, method, path: apiPath };
+  });
+
+  app.delete("/admin/endpoints", async () => {
+    await storage.clearAllMocks();
+    return { clearedAll: true };
+  });
+
   app.get<{ Querystring: { method?: string; path?: string } }>("/admin/variants", async (req, reply) => {
     const method = req.query.method?.toUpperCase();
     const apiPath = req.query.path;

@@ -159,6 +159,50 @@ export function App() {
     }
   }
 
+  async function clearEndpoint(method: string, path: string) {
+    const ok = window.confirm(`Clear endpoint ${method} ${path}? This removes all its variants.`);
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/admin/endpoint?method=${encodeURIComponent(method)}&path=${encodeURIComponent(path)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('clear failed');
+      if (selectedMethod === method && selectedPath === path) {
+        setSelectedMethod('');
+        setSelectedPath('');
+        setVariantList([]);
+        setSelectedVariantId('');
+        setVariantEditor('');
+      }
+      await refresh();
+      showToast('Endpoint cleared');
+    } catch {
+      showToast('Failed to clear endpoint');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function clearAllEndpoints() {
+    const ok = window.confirm('Clear ALL endpoints and variants? This cannot be undone.');
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/admin/endpoints', { method: 'DELETE' });
+      if (!res.ok) throw new Error('clear all failed');
+      setSelectedMethod('');
+      setSelectedPath('');
+      setVariantList([]);
+      setSelectedVariantId('');
+      setVariantEditor('');
+      await refresh();
+      showToast('All endpoints cleared');
+    } catch {
+      showToast('Failed to clear all endpoints');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function loadVariants(method: string, path: string) {
     setSelectedMethod(method);
     setSelectedPath(path);
@@ -292,10 +336,14 @@ export function App() {
                 </Card>
               </div>
 
-              <Card title="Endpoints" subtitle="Registered endpoint groups currently available for replay.">
+              <Card
+                title="Endpoints"
+                subtitle="Registered endpoint groups currently available for replay."
+                actions={<button onClick={clearAllEndpoints} disabled={busy || endpoints.length === 0} className="rounded-xl border border-rose-700 text-rose-300 px-3 py-2 text-xs hover:bg-rose-900/30 disabled:opacity-50">Clear all</button>}
+              >
                 <div className="overflow-hidden rounded-xl border border-zinc-800">
                   <table className="w-full text-sm">
-                    <thead className="bg-zinc-800/60 text-zinc-300"><tr><th className="px-3 py-2 text-left">Method</th><th className="px-3 py-2 text-left">Path</th><th className="px-3 py-2 text-left">Variants</th><th className="px-3 py-2 text-left">Default</th></tr></thead>
+                    <thead className="bg-zinc-800/60 text-zinc-300"><tr><th className="px-3 py-2 text-left">Method</th><th className="px-3 py-2 text-left">Path</th><th className="px-3 py-2 text-left">Variants</th><th className="px-3 py-2 text-left">Default</th><th className="px-3 py-2 text-left"></th></tr></thead>
                     <tbody>
                       {endpoints.map((ep, i) => (
                         <tr key={ep.method + ep.path + i} className="border-t border-zinc-800 hover:bg-zinc-800/30">
@@ -303,9 +351,10 @@ export function App() {
                           <td className="px-3 py-2 font-mono">{ep.path}</td>
                           <td className="px-3 py-2">{ep.variants}</td>
                           <td className="px-3 py-2">{ep.hasDefault ? 'Yes' : 'No'}</td>
+                          <td className="px-3 py-2"><button onClick={() => clearEndpoint(ep.method, ep.path)} className="rounded-lg border border-rose-700 text-rose-300 px-2 py-1 text-xs hover:bg-rose-900/30">Clear</button></td>
                         </tr>
                       ))}
-                      {endpoints.length === 0 ? <tr><td colSpan={4} className="px-3 py-6 text-sm text-zinc-400">No endpoints yet. Upload a HAR file to get started.</td></tr> : null}
+                      {endpoints.length === 0 ? <tr><td colSpan={5} className="px-3 py-6 text-sm text-zinc-400">No endpoints yet. Upload a HAR file to get started.</td></tr> : null}
                     </tbody>
                   </table>
                 </div>
@@ -338,13 +387,14 @@ export function App() {
               <Card title="Endpoint Variant Review" subtitle="Select an endpoint then inspect or edit individual variants.">
                 <div className="overflow-hidden rounded-xl border border-zinc-800">
                   <table className="w-full text-sm">
-                    <thead className="bg-zinc-800/60 text-zinc-300"><tr><th className="px-3 py-2 text-left">Method</th><th className="px-3 py-2 text-left">Path</th><th className="px-3 py-2 text-left"></th></tr></thead>
+                    <thead className="bg-zinc-800/60 text-zinc-300"><tr><th className="px-3 py-2 text-left">Method</th><th className="px-3 py-2 text-left">Path</th><th className="px-3 py-2 text-left"></th><th className="px-3 py-2 text-left"></th></tr></thead>
                     <tbody>
                       {endpoints.map((ep, i) => (
                         <tr key={ep.method + ep.path + i} className="border-t border-zinc-800 hover:bg-zinc-800/30">
                           <td className="px-3 py-2 font-mono text-brand-300">{ep.method}</td>
                           <td className="px-3 py-2 font-mono">{ep.path}</td>
                           <td className="px-3 py-2"><button className="rounded-lg border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800" onClick={() => loadVariants(ep.method, ep.path)}>Review variants</button></td>
+                          <td className="px-3 py-2"><button onClick={() => clearEndpoint(ep.method, ep.path)} className="rounded-lg border border-rose-700 text-rose-300 px-2 py-1 text-xs hover:bg-rose-900/30">Clear</button></td>
                         </tr>
                       ))}
                     </tbody>

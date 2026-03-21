@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AppConfig, IndexEntry, MissLogEntry, StoredMock } from "./types.js";
 import { safePathKey } from "./utils.js";
@@ -106,5 +106,19 @@ export class MockStorage {
 
   async appendContext(text: string): Promise<void> {
     await writeFile(path.join(this.metaDir(), "context.md"), `${text}\n`, { flag: "a" });
+  }
+
+  async clearEndpoint(method: string, apiPath: string): Promise<void> {
+    await rm(path.join(this.rootDir, method.toUpperCase(), safePathKey(apiPath)), { recursive: true, force: true });
+  }
+
+  async clearAllMocks(): Promise<void> {
+    const entries = await readdir(this.rootDir, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === "_meta") continue;
+      await rm(path.join(this.rootDir, entry.name), { recursive: true, force: true });
+    }
+    await this.writeIndex([]);
   }
 }

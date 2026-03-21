@@ -193,4 +193,30 @@ describe("mock bff", () => {
 
     await app.close();
   });
+
+  it("clears individual endpoint and all endpoints", async () => {
+    const { app } = await makeApp();
+    await app.inject({ method: "POST", url: "/admin/har", ...multipartPayload("sample.har", HAR_SAMPLE) });
+
+    const before = await app.inject({ method: "GET", url: "/admin/endpoints" });
+    expect(before.statusCode).toBe(200);
+    expect(before.json().length).toBeGreaterThan(0);
+
+    const clearOne = await app.inject({ method: "DELETE", url: "/admin/endpoint?method=GET&path=/api/orders" });
+    expect(clearOne.statusCode).toBe(200);
+
+    const afterOne = await app.inject({ method: "GET", url: "/admin/endpoints" });
+    expect(afterOne.statusCode).toBe(200);
+    expect(afterOne.json().find((e: any) => e.path === "/api/orders")).toBeUndefined();
+
+    await app.inject({ method: "POST", url: "/admin/har", ...multipartPayload("sample.har", HAR_SAMPLE, "def") });
+    const clearAll = await app.inject({ method: "DELETE", url: "/admin/endpoints" });
+    expect(clearAll.statusCode).toBe(200);
+
+    const afterAll = await app.inject({ method: "GET", url: "/admin/endpoints" });
+    expect(afterAll.statusCode).toBe(200);
+    expect(afterAll.json()).toEqual([]);
+
+    await app.close();
+  });
 });

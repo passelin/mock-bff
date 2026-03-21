@@ -62,7 +62,11 @@ export async function createApp(options: CreateAppOptions) {
   await storage.writeConfig({ ...initialConfig, appName: options.appName });
 
   await app.register(cors);
-  await app.register(multipart);
+  await app.register(multipart, {
+    limits: {
+      fileSize: Number(process.env.MOCK_MAX_UPLOAD_BYTES || 250 * 1024 * 1024),
+    },
+  });
 
   const adminDistDir = path.join(options.rootDir, "admin", "dist");
   await app.register(fastifyStatic, {

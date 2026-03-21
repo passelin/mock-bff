@@ -6,6 +6,7 @@ A local Fastify server to replay SPA HTTP calls from HAR recordings, with option
 
 - Single-app runtime (no multi-app registry)
 - HAR upload/import to filesystem-backed mock storage
+- HAR import filter defaults to API-like requests only (filters out static assets/non-JSON responses)
 - Layered matching: exact -> fuzzy -> default -> miss
 - Query normalization (ignore configured params like cache-busters)
 - Redaction pipeline on HAR ingest (headers + JSON keys)
@@ -112,10 +113,17 @@ Example:
   "openApiMode": "assist",
   "aiEnabled": true,
   "aiSeed": 42,
-  "aiModel": "gpt-4o-mini",
+  "aiModel": "gpt-5.4-mini",
   "ignoredQueryParams": ["_", "cacheBust", "timestamp"],
   "redactHeaders": ["authorization", "cookie", "set-cookie", "x-api-key"],
-  "redactBodyKeys": ["password", "token", "secret", "apiKey"]
+  "redactBodyKeys": ["password", "token", "secret", "apiKey"],
+  "har": {
+    "onlyApiCalls": true,
+    "requireJsonResponse": true,
+    "pathAllowlist": [],
+    "pathDenylist": [],
+    "excludeExtensions": [".js", ".css", ".png", ".svg", ".woff2"]
+  }
 }
 ```
 

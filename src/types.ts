@@ -9,6 +9,13 @@ export interface AppConfig {
   ignoredQueryParams: string[];
   redactHeaders: string[];
   redactBodyKeys: string[];
+  har: {
+    onlyApiCalls: boolean;
+    requireJsonResponse: boolean;
+    pathAllowlist: string[];
+    pathDenylist: string[];
+    excludeExtensions: string[];
+  };
 }
 
 export interface RequestSignature {

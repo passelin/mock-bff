@@ -21,6 +21,7 @@ interface HarEntry {
     headers?: Array<{ name: string; value: string }>;
     content?: { text?: string; mimeType?: string };
   };
+  _urlObj?: URL;
 }
 
 function toHeaderMap(headers: Array<{ name: string; value: string }> = []): Record<string, string> {
@@ -38,15 +39,39 @@ function maybeJson(text?: string): unknown {
   }
 }
 
+function shouldKeepEntry(entry: HarEntry, config: AppConfig): boolean {
+  const method = entry.request.method.toUpperCase();
+  const url = entry._urlObj ?? new URL(entry.request.url);
+  const pathname = normalizePath(url.pathname).toLowerCase();
+  const mime = (entry.response.content?.mimeType ?? '').toLowerCase();
+
+  if (!config.har.onlyApiCalls) return true;
+
+  if (!["GET", "POST", "PUT", "PATCH", "DELETE"].includes(method)) return false;
+
+  if (config.har.excludeExtensions.some((ext) => pathname.endsWith(ext.toLowerCase()))) return false;
+
+  if (config.har.pathAllowlist.length > 0 && !config.har.pathAllowlist.some((p) => pathname.includes(p.toLowerCase()))) {
+    return false;
+  }
+
+  if (config.har.pathDenylist.some((p) => pathname.includes(p.toLowerCase()))) return false;
+
+  if (config.har.requireJsonResponse && !mime.includes("application/json")) return false;
+
+  return true;
+}
+
 export function parseHar(
   input: string,
   config: AppConfig,
 ): Array<{ method: string; path: string; variant: string; mock: StoredMock }> {
   const data = JSON.parse(input) as Har;
-  const entries = data.log?.entries ?? [];
+  const entries = (data.log?.entries ?? []).map((e) => ({ ...e, _urlObj: new URL(e.request.url) }));
+  const filtered = entries.filter((e) => shouldKeepEntry(e, config));
 
-  return entries.map((e) => {
-    const url = new URL(e.request.url);
+  return filtered.map((e) => {
+    const url = e._urlObj ?? new URL(e.request.url);
     const method = e.request.method.toUpperCase();
     const path = normalizePath(url.pathname);
 

@@ -11,6 +11,15 @@ const DEFAULT_CONFIG: AppConfig = {
   ignoredQueryParams: ["_", "cacheBust", "timestamp"],
   redactHeaders: ["authorization", "cookie", "set-cookie", "x-api-key"],
   redactBodyKeys: ["password", "token", "accessToken", "refreshToken", "secret", "apiKey"],
+  har: {
+    onlyApiCalls: true,
+    requireJsonResponse: true,
+    pathAllowlist: [],
+    pathDenylist: [],
+    excludeExtensions: [
+      ".js", ".css", ".map", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".eot", ".pdf",
+    ],
+  },
 };
 
 export class MockStorage {

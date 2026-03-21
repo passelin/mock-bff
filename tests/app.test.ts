@@ -17,7 +17,18 @@ const HAR_SAMPLE = JSON.stringify({
         response: {
           status: 200,
           headers: [{ name: "content-type", value: "application/json" }],
-          content: { text: JSON.stringify({ items: [{ id: 1 }] }) },
+          content: { text: JSON.stringify({ items: [{ id: 1 }] }), mimeType: "application/json" },
+        },
+      },
+      {
+        request: {
+          method: "GET",
+          url: "https://example.local/assets/app.js",
+        },
+        response: {
+          status: 200,
+          headers: [{ name: "content-type", value: "application/javascript" }],
+          content: { text: "console.log('x')", mimeType: "application/javascript" },
         },
       },
     ],
@@ -84,6 +95,21 @@ describe("mock bff", () => {
     expect(replay.statusCode).toBe(200);
     expect(replay.headers["x-mock-match"]).toBe("exact");
     expect(replay.json()).toEqual({ items: [{ id: 1 }] });
+
+    await app.close();
+  });
+
+  it("filters non-api/static asset entries during HAR import", async () => {
+    const { app } = await makeApp();
+
+    const ingest = await app.inject({ method: "POST", url: "/admin/har", ...multipartPayload("sample.har", HAR_SAMPLE) });
+    expect(ingest.statusCode).toBe(200);
+    expect(ingest.json().imported).toBe(1);
+
+    const endpoints = await app.inject({ method: "GET", url: "/admin/endpoints" });
+    expect(endpoints.statusCode).toBe(200);
+    expect(endpoints.json().length).toBe(1);
+    expect(endpoints.json()[0].path).toBe("/api/orders");
 
     await app.close();
   });

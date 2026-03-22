@@ -81,17 +81,17 @@ mock-bff --provider none
 
 ## API endpoints
 
-- `POST /admin/har`
-- `POST /admin/openapi`
-- `GET /admin/endpoints`
-- `DELETE /admin/endpoint?method=GET&path=/api/orders`
-- `DELETE /admin/endpoints`
-- `GET /admin/variants?method=GET&path=/api/orders`
-- `GET /admin/variant?method=GET&path=/api/orders&id=q_...__b_...`
-- `PUT /admin/variant`
-- `GET /admin/requests?limit=100`
-- `GET /admin/misses`
-- `ALL /mock/*`
+- `POST /-/api/har`
+- `POST /-/api/openapi`
+- `GET /-/api/endpoints`
+- `DELETE /-/api/endpoint?method=GET&path=/api/orders`
+- `DELETE /-/api/endpoints`
+- `GET /-/api/variants?method=GET&path=/api/orders`
+- `GET /-/api/variant?method=GET&path=/api/orders&id=q_...__b_...`
+- `PUT /-/api/variant`
+- `GET /-/api/requests?limit=100`
+- `GET /-/api/misses`
+- `ALL /*`
 
 ## Development
 

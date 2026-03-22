@@ -86,17 +86,17 @@ export async function createApp(options: CreateAppOptions) {
 
   app.get("/-/admin", serveAdminIndex);
 
-  app.get("/admin/health", async () => ({ ok: true, app: options.appName }));
-  app.get("/admin/config", async () => storage.readConfig());
+  app.get("/-/api/health", async () => ({ ok: true, app: options.appName }));
+  app.get("/-/api/config", async () => storage.readConfig());
 
-  app.patch<{ Body: Record<string, unknown> }>("/admin/config", async (req) => {
+  app.patch<{ Body: Record<string, unknown> }>("/-/api/config", async (req) => {
     const prev = await storage.readConfig();
     const next = { ...prev, ...req.body };
     await storage.writeConfig(next);
     return next;
   });
 
-  app.post("/admin/openapi", async (req, reply) => {
+  app.post("/-/api/openapi", async (req, reply) => {
     const part = await req.file();
     if (!part) return reply.code(400).send({ error: "Missing file" });
     const data = await part.toBuffer();
@@ -106,7 +106,7 @@ export async function createApp(options: CreateAppOptions) {
     return { saved: true };
   });
 
-  app.post("/admin/har", async (req, reply) => {
+  app.post("/-/api/har", async (req, reply) => {
     const part = await req.file();
     if (!part) return reply.code(400).send({ error: "Missing HAR file" });
 
@@ -126,12 +126,12 @@ export async function createApp(options: CreateAppOptions) {
     return { imported: parsed.length };
   });
 
-  app.get("/admin/endpoints", async () => {
+  app.get("/-/api/endpoints", async () => {
     const index = await storage.readIndex();
     return index.map((e) => ({ method: e.method, path: e.path, variants: e.variants.length, hasDefault: Boolean(e.defaultVariant) }));
   });
 
-  app.delete<{ Querystring: { method?: string; path?: string } }>("/admin/endpoint", async (req, reply) => {
+  app.delete<{ Querystring: { method?: string; path?: string } }>("/-/api/endpoint", async (req, reply) => {
     const method = req.query.method?.toUpperCase();
     const apiPath = req.query.path;
     if (!method || !apiPath) return reply.code(400).send({ error: "method and path query params are required" });
@@ -143,12 +143,12 @@ export async function createApp(options: CreateAppOptions) {
     return { cleared: true, method, path: apiPath };
   });
 
-  app.delete("/admin/endpoints", async () => {
+  app.delete("/-/api/endpoints", async () => {
     await storage.clearAllMocks();
     return { clearedAll: true };
   });
 
-  app.get<{ Querystring: { method?: string; path?: string } }>("/admin/variants", async (req, reply) => {
+  app.get<{ Querystring: { method?: string; path?: string } }>("/-/api/variants", async (req, reply) => {
     const method = req.query.method?.toUpperCase();
     const apiPath = req.query.path;
     if (!method || !apiPath) return reply.code(400).send({ error: "method and path query params are required" });
@@ -164,7 +164,7 @@ export async function createApp(options: CreateAppOptions) {
     return { method, path: apiPath, variants: items };
   });
 
-  app.get<{ Querystring: { method?: string; path?: string; id?: string } }>("/admin/variant", async (req, reply) => {
+  app.get<{ Querystring: { method?: string; path?: string; id?: string } }>("/-/api/variant", async (req, reply) => {
     const method = req.query.method?.toUpperCase();
     const apiPath = req.query.path;
     const id = req.query.id;
@@ -176,7 +176,7 @@ export async function createApp(options: CreateAppOptions) {
     return { method, path: apiPath, id, mock };
   });
 
-  app.put<{ Body: { method?: string; path?: string; id?: string; mock?: StoredMock } }>("/admin/variant", async (req, reply) => {
+  app.put<{ Body: { method?: string; path?: string; id?: string; mock?: StoredMock } }>("/-/api/variant", async (req, reply) => {
     const method = req.body.method?.toUpperCase();
     const apiPath = req.body.path;
     const id = req.body.id;
@@ -195,7 +195,7 @@ export async function createApp(options: CreateAppOptions) {
     return { saved: true };
   });
 
-  app.get<{ Querystring: { method?: string; path?: string } }>("/admin/diagnostics", async (req, reply) => {
+  app.get<{ Querystring: { method?: string; path?: string } }>("/-/api/diagnostics", async (req, reply) => {
     const method = req.query.method?.toUpperCase();
     const apiPath = req.query.path;
     if (!method || !apiPath) return reply.code(400).send({ error: "method and path query params are required" });
@@ -215,7 +215,7 @@ export async function createApp(options: CreateAppOptions) {
     };
   });
 
-  app.get("/admin/misses", async (_req, reply) => {
+  app.get("/-/api/misses", async (_req, reply) => {
     const file = path.join(storage.metaDir(), "misses.log.jsonl");
     try {
       return (await readFile(file, "utf8")).trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
@@ -224,28 +224,35 @@ export async function createApp(options: CreateAppOptions) {
     }
   });
 
-  app.get<{ Querystring: { limit?: string } }>("/admin/requests", async (req) => {
+  app.get<{ Querystring: { limit?: string } }>("/-/api/requests", async (req) => {
     const requested = Number(req.query.limit ?? 100);
     const limit = Number.isFinite(requested) ? Math.max(1, Math.min(1000, requested)) : 100;
     const rows = requestLogs.slice(-limit).reverse();
     return { max: maxRequestLogs, count: requestLogs.length, rows };
   });
 
-  app.get("/admin/context", async () => ({ context: await readFile(path.join(storage.metaDir(), "context.md"), "utf8") }));
-  app.put<{ Body: { context: string } }>("/admin/context", async (req) => {
+  app.get("/-/api/context", async () => ({ context: await readFile(path.join(storage.metaDir(), "context.md"), "utf8") }));
+  app.put<{ Body: { context: string } }>("/-/api/context", async (req) => {
     await writeFile(path.join(storage.metaDir(), "context.md"), req.body.context, "utf8");
     return { saved: true };
   });
 
-  app.post("/admin/reindex", async () => {
+  app.post("/-/api/reindex", async () => {
     const index = await storage.readIndex();
     await storage.writeIndex(index);
     return { reindexed: index.length };
   });
 
-  app.all("/mock/*", async (req, reply) => {
+  app.route({
+    method: ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"],
+    url: "/*",
+    handler: async (req, reply) => {
     const method = req.method.toUpperCase();
-    const fullPath = normalizePath(req.url.split("?")[0].replace(/^\/mock/, "") || "/");
+    const fullPath = normalizePath(req.url.split("?")[0] || "/");
+
+    if (fullPath.startsWith("/-/")) {
+      return reply.code(404).send({ error: "Not found" });
+    }
     const config = await storage.readConfig();
 
     const query = normalizeQuery((req.query as Record<string, string | string[]>) ?? {}, config.ignoredQueryParams);
@@ -342,6 +349,7 @@ export async function createApp(options: CreateAppOptions) {
       .code(generated.response.status)
       .headers(generated.response.headers)
       .send(generated.response.body);
+    },
   });
 
   return app;

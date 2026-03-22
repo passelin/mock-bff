@@ -127,25 +127,25 @@ export function App() {
   }
 
   async function loadEndpoints() {
-    setEndpoints(await (await fetch('/admin/endpoints')).json());
+    setEndpoints(await (await fetch('/-/api/endpoints')).json());
   }
 
   async function loadRequests() {
-    const data = await (await fetch('/admin/requests?limit=100')).json();
+    const data = await (await fetch('/-/api/requests?limit=100')).json();
     setRequests(data.rows ?? []);
   }
 
   async function loadMisses() {
-    const data = await (await fetch('/admin/misses')).json();
+    const data = await (await fetch('/-/api/misses')).json();
     setMisses(Array.isArray(data) ? data : []);
   }
 
   async function loadConfig() {
-    setConfigText(JSON.stringify(await (await fetch('/admin/config')).json(), null, 2));
+    setConfigText(JSON.stringify(await (await fetch('/-/api/config')).json(), null, 2));
   }
 
   async function loadContext() {
-    const d = await (await fetch('/admin/context')).json();
+    const d = await (await fetch('/-/api/context')).json();
     setContext(d.context || '');
   }
 
@@ -171,7 +171,7 @@ export function App() {
     if (!ok) return;
     setBusy(true);
     try {
-      const res = await fetch(`/admin/endpoint?method=${encodeURIComponent(method)}&path=${encodeURIComponent(path)}`, { method: 'DELETE' });
+      const res = await fetch(`/-/api/endpoint?method=${encodeURIComponent(method)}&path=${encodeURIComponent(path)}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('clear failed');
       if (selectedMethod === method && selectedPath === path) {
         setSelectedMethod('');
@@ -194,7 +194,7 @@ export function App() {
     if (!ok) return;
     setBusy(true);
     try {
-      const res = await fetch('/admin/endpoints', { method: 'DELETE' });
+      const res = await fetch('/-/api/endpoints', { method: 'DELETE' });
       if (!res.ok) throw new Error('clear all failed');
       setSelectedMethod('');
       setSelectedPath('');
@@ -213,7 +213,7 @@ export function App() {
   async function loadVariants(method: string, path: string) {
     setSelectedMethod(method);
     setSelectedPath(path);
-    const data = await (await fetch(`/admin/variants?method=${encodeURIComponent(method)}&path=${encodeURIComponent(path)}`)).json();
+    const data = await (await fetch(`/-/api/variants?method=${encodeURIComponent(method)}&path=${encodeURIComponent(path)}`)).json();
     setVariantList(data.variants ?? []);
     setSelectedVariantId('');
     setVariantEditor('');
@@ -222,7 +222,7 @@ export function App() {
   async function selectVariant(id: string) {
     setSelectedVariantId(id);
     const data = await (
-      await fetch(`/admin/variant?method=${encodeURIComponent(selectedMethod)}&path=${encodeURIComponent(selectedPath)}&id=${encodeURIComponent(id)}`)
+      await fetch(`/-/api/variant?method=${encodeURIComponent(selectedMethod)}&path=${encodeURIComponent(selectedPath)}&id=${encodeURIComponent(id)}`)
     ).json();
     setVariantEditor(JSON.stringify(data.mock, null, 2));
   }
@@ -231,7 +231,7 @@ export function App() {
     setBusy(true);
     try {
       const mock = JSON.parse(variantEditor);
-      await fetch('/admin/variant', {
+      await fetch('/-/api/variant', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ method: selectedMethod, path: selectedPath, id: selectedVariantId, mock }),
@@ -249,7 +249,7 @@ export function App() {
     setBusy(true);
     try {
       const parsed = JSON.parse(configText);
-      await fetch('/admin/config', {
+      await fetch('/-/api/config', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(parsed),
@@ -265,7 +265,7 @@ export function App() {
   async function saveContext() {
     setBusy(true);
     try {
-      await fetch('/admin/context', {
+      await fetch('/-/api/context', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ context }),
@@ -342,11 +342,11 @@ export function App() {
           element={
             <>
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <Card title="Import HAR" subtitle="Upload real traffic captures to generate endpoint variants." tone="highlight" actions={<button disabled={busy || !harFile} onClick={() => uploadFile('/admin/har', harFile, 'HAR imported')} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50 inline-flex items-center gap-2"><Upload className="h-4 w-4" />Upload HAR</button>}>
+                <Card title="Import HAR" subtitle="Upload real traffic captures to generate endpoint variants." tone="highlight" actions={<button disabled={busy || !harFile} onClick={() => uploadFile('/-/api/har', harFile, 'HAR imported')} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50 inline-flex items-center gap-2"><Upload className="h-4 w-4" />Upload HAR</button>}>
                   <input type="file" accept=".har,.json" onChange={(e) => setHarFile(e.target.files?.[0] ?? null)} className="block w-full text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-brand-600 file:px-4 file:py-2 file:text-white hover:file:bg-brand-500" />
                 </Card>
 
-                <Card title="Import OpenAPI" subtitle="Upload JSON/YAML contract for validation and guidance." tone="highlight" actions={<button disabled={busy || !openApiFile} onClick={() => uploadFile('/admin/openapi', openApiFile, 'OpenAPI imported')} className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium disabled:opacity-50 inline-flex items-center gap-2"><FileUp className="h-4 w-4" />Upload OpenAPI</button>}>
+                <Card title="Import OpenAPI" subtitle="Upload JSON/YAML contract for validation and guidance." tone="highlight" actions={<button disabled={busy || !openApiFile} onClick={() => uploadFile('/-/api/openapi', openApiFile, 'OpenAPI imported')} className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium disabled:opacity-50 inline-flex items-center gap-2"><FileUp className="h-4 w-4" />Upload OpenAPI</button>}>
                   <input type="file" accept=".json,.yaml,.yml" onChange={(e) => setOpenApiFile(e.target.files?.[0] ?? null)} className="block w-full text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-white hover:file:bg-indigo-500" />
                 </Card>
               </div>

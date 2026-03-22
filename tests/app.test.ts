@@ -87,11 +87,11 @@ describe("mock bff", () => {
   it("imports HAR and serves exact match", async () => {
     const { app } = await makeApp();
 
-    const ingest = await app.inject({ method: "POST", url: "/admin/har", ...multipartPayload("sample.har", HAR_SAMPLE) });
+    const ingest = await app.inject({ method: "POST", url: "/-/api/har", ...multipartPayload("sample.har", HAR_SAMPLE) });
     expect(ingest.statusCode).toBe(200);
     expect(ingest.json().imported).toBe(1);
 
-    const replay = await app.inject({ method: "GET", url: "/mock/api/orders?page=1" });
+    const replay = await app.inject({ method: "GET", url: "/api/orders?page=1" });
     expect(replay.statusCode).toBe(200);
     expect(replay.headers["x-mock-match"]).toBe("exact");
     expect(replay.json()).toEqual({ items: [{ id: 1 }] });
@@ -102,11 +102,11 @@ describe("mock bff", () => {
   it("filters non-api/static asset entries during HAR import", async () => {
     const { app } = await makeApp();
 
-    const ingest = await app.inject({ method: "POST", url: "/admin/har", ...multipartPayload("sample.har", HAR_SAMPLE) });
+    const ingest = await app.inject({ method: "POST", url: "/-/api/har", ...multipartPayload("sample.har", HAR_SAMPLE) });
     expect(ingest.statusCode).toBe(200);
     expect(ingest.json().imported).toBe(1);
 
-    const endpoints = await app.inject({ method: "GET", url: "/admin/endpoints" });
+    const endpoints = await app.inject({ method: "GET", url: "/-/api/endpoints" });
     expect(endpoints.statusCode).toBe(200);
     expect(endpoints.json().length).toBe(1);
     expect(endpoints.json()[0].path).toBe("/api/orders");
@@ -116,9 +116,9 @@ describe("mock bff", () => {
 
   it("ignores configured query params when matching variants", async () => {
     const { app } = await makeApp();
-    await app.inject({ method: "POST", url: "/admin/har", ...multipartPayload("sample.har", HAR_SAMPLE) });
+    await app.inject({ method: "POST", url: "/-/api/har", ...multipartPayload("sample.har", HAR_SAMPLE) });
 
-    const replay = await app.inject({ method: "GET", url: "/mock/api/orders?page=1&_=" + Date.now() });
+    const replay = await app.inject({ method: "GET", url: "/api/orders?page=1&_=" + Date.now() });
     expect(replay.statusCode).toBe(200);
     expect(replay.json()).toEqual({ items: [{ id: 1 }] });
 
@@ -128,12 +128,12 @@ describe("mock bff", () => {
   it("uses AI fallback on miss and then replays same response", async () => {
     const { app } = await makeApp();
 
-    const first = await app.inject({ method: "POST", url: "/mock/api/unknown", payload: { term: "abc" } });
+    const first = await app.inject({ method: "POST", url: "/api/unknown", payload: { term: "abc" } });
     expect(first.statusCode).toBe(200);
     expect(first.headers["x-mock-match"]).toBe("generated");
     expect(first.headers["x-mock-source"]).toMatch(/^ai/);
 
-    const second = await app.inject({ method: "POST", url: "/mock/api/unknown", payload: { term: "abc" } });
+    const second = await app.inject({ method: "POST", url: "/api/unknown", payload: { term: "abc" } });
     expect(second.statusCode).toBe(200);
     expect(second.headers["x-mock-match"]).toBe("exact");
     expect(second.json()).toEqual(first.json());
@@ -143,9 +143,9 @@ describe("mock bff", () => {
 
   it("returns 404 when AI is disabled and no match exists", async () => {
     const { app } = await makeApp();
-    await app.inject({ method: "PATCH", url: "/admin/config", payload: { aiEnabled: false } });
+    await app.inject({ method: "PATCH", url: "/-/api/config", payload: { aiEnabled: false } });
 
-    const miss = await app.inject({ method: "GET", url: "/mock/api/not-found" });
+    const miss = await app.inject({ method: "GET", url: "/api/not-found" });
     expect(miss.statusCode).toBe(404);
     expect(miss.json()).toEqual({ error: "No mock found" });
 
@@ -154,10 +154,10 @@ describe("mock bff", () => {
 
   it("enforces strict openapi mode for generated responses", async () => {
     const { app } = await makeApp();
-    await app.inject({ method: "POST", url: "/admin/openapi", ...multipartPayload("openapi.json", OPENAPI_STRICT, "xyz") });
-    await app.inject({ method: "PATCH", url: "/admin/config", payload: { openApiMode: "strict", aiEnabled: true } });
+    await app.inject({ method: "POST", url: "/-/api/openapi", ...multipartPayload("openapi.json", OPENAPI_STRICT, "xyz") });
+    await app.inject({ method: "PATCH", url: "/-/api/config", payload: { openApiMode: "strict", aiEnabled: true } });
 
-    const miss = await app.inject({ method: "POST", url: "/mock/api/unknown", payload: { x: 1 } });
+    const miss = await app.inject({ method: "POST", url: "/api/unknown", payload: { x: 1 } });
     expect(miss.statusCode).toBe(502);
     expect(miss.headers["x-mock-match"]).toBe("generated-invalid");
     expect(miss.json().error).toContain("violates OpenAPI");
@@ -167,9 +167,9 @@ describe("mock bff", () => {
 
   it("returns endpoint diagnostics", async () => {
     const { app } = await makeApp();
-    await app.inject({ method: "POST", url: "/admin/har", ...multipartPayload("sample.har", HAR_SAMPLE) });
+    await app.inject({ method: "POST", url: "/-/api/har", ...multipartPayload("sample.har", HAR_SAMPLE) });
 
-    const diag = await app.inject({ method: "GET", url: "/admin/diagnostics?method=GET&path=/api/orders" });
+    const diag = await app.inject({ method: "GET", url: "/-/api/diagnostics?method=GET&path=/api/orders" });
     expect(diag.statusCode).toBe(200);
     expect(diag.json().indexed).toBe(true);
     expect(diag.json().hasDefault).toBe(true);
@@ -179,12 +179,12 @@ describe("mock bff", () => {
 
   it("stores request logs in memory with bounded retrieval", async () => {
     const { app } = await makeApp();
-    await app.inject({ method: "POST", url: "/admin/har", ...multipartPayload("sample.har", HAR_SAMPLE) });
+    await app.inject({ method: "POST", url: "/-/api/har", ...multipartPayload("sample.har", HAR_SAMPLE) });
 
-    await app.inject({ method: "GET", url: "/mock/api/orders?page=1" });
-    await app.inject({ method: "GET", url: "/mock/api/not-found" });
+    await app.inject({ method: "GET", url: "/api/orders?page=1" });
+    await app.inject({ method: "GET", url: "/api/not-found" });
 
-    const logs = await app.inject({ method: "GET", url: "/admin/requests?limit=2" });
+    const logs = await app.inject({ method: "GET", url: "/-/api/requests?limit=2" });
     expect(logs.statusCode).toBe(200);
     expect(logs.json().rows.length).toBe(2);
     expect(logs.json().rows[0]).toHaveProperty("method");
@@ -195,25 +195,25 @@ describe("mock bff", () => {
 
   it("lists and edits variants via admin API", async () => {
     const { app } = await makeApp();
-    await app.inject({ method: "POST", url: "/admin/har", ...multipartPayload("sample.har", HAR_SAMPLE) });
+    await app.inject({ method: "POST", url: "/-/api/har", ...multipartPayload("sample.har", HAR_SAMPLE) });
 
-    const list = await app.inject({ method: "GET", url: "/admin/variants?method=GET&path=/api/orders" });
+    const list = await app.inject({ method: "GET", url: "/-/api/variants?method=GET&path=/api/orders" });
     expect(list.statusCode).toBe(200);
     expect(list.json().variants.length).toBeGreaterThan(0);
 
     const id = list.json().variants[0].id;
-    const one = await app.inject({ method: "GET", url: "/admin/variant?method=GET&path=/api/orders&id=" + encodeURIComponent(id) });
+    const one = await app.inject({ method: "GET", url: "/-/api/variant?method=GET&path=/api/orders&id=" + encodeURIComponent(id) });
     expect(one.statusCode).toBe(200);
 
     const updated = { ...one.json().mock, response: { ...one.json().mock.response, body: { items: [{ id: 999 }] } } };
     const save = await app.inject({
       method: "PUT",
-      url: "/admin/variant",
+      url: "/-/api/variant",
       payload: { method: "GET", path: "/api/orders", id, mock: updated },
     });
     expect(save.statusCode).toBe(200);
 
-    const replay = await app.inject({ method: "GET", url: "/mock/api/orders?page=1" });
+    const replay = await app.inject({ method: "GET", url: "/api/orders?page=1" });
     expect(replay.statusCode).toBe(200);
     expect(replay.json()).toEqual({ items: [{ id: 999 }] });
 
@@ -222,24 +222,24 @@ describe("mock bff", () => {
 
   it("clears individual endpoint and all endpoints", async () => {
     const { app } = await makeApp();
-    await app.inject({ method: "POST", url: "/admin/har", ...multipartPayload("sample.har", HAR_SAMPLE) });
+    await app.inject({ method: "POST", url: "/-/api/har", ...multipartPayload("sample.har", HAR_SAMPLE) });
 
-    const before = await app.inject({ method: "GET", url: "/admin/endpoints" });
+    const before = await app.inject({ method: "GET", url: "/-/api/endpoints" });
     expect(before.statusCode).toBe(200);
     expect(before.json().length).toBeGreaterThan(0);
 
-    const clearOne = await app.inject({ method: "DELETE", url: "/admin/endpoint?method=GET&path=/api/orders" });
+    const clearOne = await app.inject({ method: "DELETE", url: "/-/api/endpoint?method=GET&path=/api/orders" });
     expect(clearOne.statusCode).toBe(200);
 
-    const afterOne = await app.inject({ method: "GET", url: "/admin/endpoints" });
+    const afterOne = await app.inject({ method: "GET", url: "/-/api/endpoints" });
     expect(afterOne.statusCode).toBe(200);
     expect(afterOne.json().find((e: any) => e.path === "/api/orders")).toBeUndefined();
 
-    await app.inject({ method: "POST", url: "/admin/har", ...multipartPayload("sample.har", HAR_SAMPLE, "def") });
-    const clearAll = await app.inject({ method: "DELETE", url: "/admin/endpoints" });
+    await app.inject({ method: "POST", url: "/-/api/har", ...multipartPayload("sample.har", HAR_SAMPLE, "def") });
+    const clearAll = await app.inject({ method: "DELETE", url: "/-/api/endpoints" });
     expect(clearAll.statusCode).toBe(200);
 
-    const afterAll = await app.inject({ method: "GET", url: "/admin/endpoints" });
+    const afterAll = await app.inject({ method: "GET", url: "/-/api/endpoints" });
     expect(afterAll.statusCode).toBe(200);
     expect(afterAll.json()).toEqual([]);
 

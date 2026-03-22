@@ -9,6 +9,7 @@ const DEFAULT_CONFIG: AppConfig = {
   aiEnabled: true,
   aiProvider: "openai",
   aiModel: "gpt-5.4-mini",
+  aiStorePrompt: false,
   ignoredQueryParams: ["_", "cacheBust", "timestamp"],
   redactHeaders: ["authorization", "cookie", "set-cookie", "x-api-key"],
   redactBodyKeys: ["password", "token", "accessToken", "refreshToken", "secret", "apiKey"],
@@ -120,6 +121,10 @@ export class MockStorage {
 
   async clearEndpoint(method: string, apiPath: string): Promise<void> {
     await rm(path.join(this.rootDir, method.toUpperCase(), safePathKey(apiPath)), { recursive: true, force: true });
+  }
+
+  async clearVariant(method: string, apiPath: string, variantId: string): Promise<void> {
+    await rm(this.mockPath(method, apiPath, variantId), { force: true });
   }
 
   async clearAllMocks(): Promise<void> {

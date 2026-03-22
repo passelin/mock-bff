@@ -7,6 +7,7 @@ export interface AppConfig {
   aiSeed?: number;
   aiProvider?: "openai" | "none";
   aiModel?: string;
+  aiStorePrompt?: boolean;
   ignoredQueryParams: string[];
   redactHeaders: string[];
   redactBodyKeys: string[];
@@ -44,6 +45,7 @@ export interface StoredMock {
     createdAt: string;
     seed?: number;
     notes?: string;
+    prompt?: string;
   };
 }
 

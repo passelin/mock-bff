@@ -13,8 +13,9 @@ Options:
   -H, --host <host>           Server host (default: 0.0.0.0)
   -r, --root <path>           Project root directory (default: cwd)
   -a, --app-name <name>       App name label (default: local-app)
-      --provider <name>       AI provider: openai|none (default: openai)
-      --model <id>            AI model id (default: gpt-5.4-mini)
+      --provider <name>       AI provider: openai|anthropic|ollama|none (default: openai)
+      --model <id>            AI model id (provider-specific)
+      --ollama-base-url <url> Ollama base URL (default: http://127.0.0.1:11434/v1)
   -h, --help                  Show help
 
 Environment:

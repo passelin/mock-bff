@@ -1,5 +1,7 @@
 import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
+import { anthropic } from "@ai-sdk/anthropic";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { AppConfig, StoredMock } from "./types.js";
 import { shortHash } from "./utils.js";
 
@@ -14,8 +16,8 @@ export interface AiGenerateInput {
 }
 
 function singularize(word: string): string {
-  if (word.endsWith('ies')) return word.slice(0, -3) + 'y';
-  if (word.endsWith('s') && word.length > 1) return word.slice(0, -1);
+  if (word.endsWith("ies")) return word.slice(0, -3) + "y";
+  if (word.endsWith("s") && word.length > 1) return word.slice(0, -1);
   return word;
 }
 
@@ -25,19 +27,19 @@ function looksLikeId(value: string): boolean {
 
 function fakeValueFromKey(key: string, idHint?: string): unknown {
   const k = key.toLowerCase();
-  if (k === 'id' || k.endsWith('_id')) return idHint ?? 'id_1234';
-  if (k.includes('name')) return idHint ? `User ${idHint}` : 'Mock Name';
-  if (k.includes('email')) return idHint ? `user${idHint}@example.com` : 'user@example.com';
-  if (k.includes('phone')) return '+1-555-0100';
-  if (k.includes('active') || k.startsWith('is_') || k.startsWith('has_')) return true;
-  if (k.includes('count') || k.includes('total')) return 1;
-  if (k.includes('date') || k.includes('at')) return new Date().toISOString();
-  if (k.includes('status')) return 'active';
-  return 'mock';
+  if (k === "id" || k.endsWith("_id")) return idHint ?? "id_1234";
+  if (k.includes("name")) return idHint ? `User ${idHint}` : "Mock Name";
+  if (k.includes("email")) return idHint ? `user${idHint}@example.com` : "user@example.com";
+  if (k.includes("phone")) return "+1-555-0100";
+  if (k.includes("active") || k.startsWith("is_") || k.startsWith("has_")) return true;
+  if (k.includes("count") || k.includes("total")) return 1;
+  if (k.includes("date") || k.includes("at")) return new Date().toISOString();
+  if (k.includes("status")) return "active";
+  return "mock";
 }
 
 function synthesizeFromExample(example: unknown, idHint?: string): unknown {
-  if (!example || typeof example !== 'object' || Array.isArray(example)) return undefined;
+  if (!example || typeof example !== "object" || Array.isArray(example)) return undefined;
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(example as Record<string, unknown>)) {
     out[key] = fakeValueFromKey(key, idHint);
@@ -60,7 +62,7 @@ function extractJsonObjectsFromContext(context: string): unknown[] {
   for (const raw of rawMatches.slice(0, 40)) {
     try {
       const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') snippets.push(parsed);
+      if (parsed && typeof parsed === "object") snippets.push(parsed);
     } catch {}
   }
 
@@ -68,7 +70,7 @@ function extractJsonObjectsFromContext(context: string): unknown[] {
 }
 
 function pickContextShape(input: AiGenerateInput, idHint?: string): unknown {
-  const segments = input.path.toLowerCase().split('/').filter(Boolean);
+  const segments = input.path.toLowerCase().split("/").filter(Boolean);
   const contextObjects = extractJsonObjectsFromContext(input.context);
   if (contextObjects.length === 0) return undefined;
 
@@ -76,7 +78,7 @@ function pickContextShape(input: AiGenerateInput, idHint?: string): unknown {
     const text = JSON.stringify(obj).toLowerCase();
     let score = 0;
     for (const s of segments) if (s.length > 2 && text.includes(s)) score += 1;
-    if (idHint && text.includes('id')) score += 1;
+    if (idHint && text.includes("id")) score += 1;
     return { obj, score };
   });
 
@@ -87,49 +89,49 @@ function pickContextShape(input: AiGenerateInput, idHint?: string): unknown {
   return synthesizeFromExample(best.obj, idHint) ?? best.obj;
 }
 
-function detectPreferredFormat(input: AiGenerateInput): 'json' | 'text' | 'html' {
+function detectPreferredFormat(input: AiGenerateInput): "json" | "text" | "html" {
   const acceptRaw = input.requestHeaders?.accept;
-  const accept = Array.isArray(acceptRaw) ? acceptRaw.join(',') : (acceptRaw ?? '');
+  const accept = Array.isArray(acceptRaw) ? acceptRaw.join(",") : acceptRaw ?? "";
   const a = accept.toLowerCase();
 
-  if (a.includes('text/html')) return 'html';
-  if (a.includes('text/plain') && !a.includes('application/json')) return 'text';
-  return 'json';
+  if (a.includes("text/html")) return "html";
+  if (a.includes("text/plain") && !a.includes("application/json")) return "text";
+  return "json";
 }
 
 function synthesizeFallbackBody(input: AiGenerateInput, signature: string): unknown {
-  const segments = input.path.split('/').filter(Boolean);
+  const segments = input.path.split("/").filter(Boolean);
   const last = segments[segments.length - 1];
   const prev = segments[segments.length - 2];
   const idHint = last && looksLikeId(last) ? last : undefined;
 
   const contextShape = pickContextShape(input, idHint);
-  if (contextShape && typeof contextShape === 'object') {
+  if (contextShape && typeof contextShape === "object") {
     return { ...(contextShape as Record<string, unknown>), generated: true, signature };
   }
 
-  const nearbyExample = input.nearbyExamples.find((e) => e.responseBody && typeof e.responseBody === 'object')?.responseBody;
+  const nearbyExample = input.nearbyExamples.find((e) => e.responseBody && typeof e.responseBody === "object")?.responseBody;
   const shaped = synthesizeFromExample(nearbyExample, idHint);
   if (shaped) return { ...(shaped as Record<string, unknown>), generated: true, signature };
 
-  if (input.method === 'GET' && idHint && prev) {
+  if (input.method === "GET" && idHint && prev) {
     const entity = singularize(prev);
     return {
       id: idHint,
       type: entity,
-      name: `${entity[0]?.toUpperCase() ?? 'E'}${entity.slice(1)} ${idHint}`,
-      status: 'active',
+      name: `${entity[0]?.toUpperCase() ?? "E"}${entity.slice(1)} ${idHint}`,
+      status: "active",
       email: `${entity}${idHint}@example.com`,
       generated: true,
       signature,
     };
   }
 
-  if (input.method === 'GET') {
+  if (input.method === "GET") {
     return {
       items: [
-        { id: '1001', name: 'Mock Item 1' },
-        { id: '1002', name: 'Mock Item 2' },
+        { id: "1001", name: "Mock Item 1" },
+        { id: "1002", name: "Mock Item 2" },
       ],
       total: 2,
       generated: true,
@@ -137,17 +139,17 @@ function synthesizeFallbackBody(input: AiGenerateInput, signature: string): unkn
     };
   }
 
-  if (input.method === 'POST') {
+  if (input.method === "POST") {
     return {
-      id: 'created_1001',
+      id: "created_1001",
       created: true,
-      ...((input.body && typeof input.body === 'object') ? (input.body as Record<string, unknown>) : {}),
+      ...((input.body && typeof input.body === "object") ? (input.body as Record<string, unknown>) : {}),
       generated: true,
       signature,
     };
   }
 
-  return { generated: true, endpoint: `${input.method} ${input.path}`, signature, note: 'Deterministic fallback' };
+  return { generated: true, endpoint: `${input.method} ${input.path}`, signature, note: "Deterministic fallback" };
 }
 
 function fallbackResponse(input: AiGenerateInput, config: AppConfig, promptHint?: string): StoredMock {
@@ -157,13 +159,13 @@ function fallbackResponse(input: AiGenerateInput, config: AppConfig, promptHint?
 
   const bodyObject = synthesizeFallbackBody(input, signature);
   const responseBody =
-    format === 'text'
+    format === "text"
       ? `Mock response for ${input.method} ${input.path}`
-      : format === 'html'
+      : format === "html"
         ? `<html><body><pre>${JSON.stringify(bodyObject, null, 2)}</pre></body></html>`
         : bodyObject;
 
-  const contentType = format === 'text' ? 'text/plain; charset=utf-8' : format === 'html' ? 'text/html; charset=utf-8' : 'application/json';
+  const contentType = format === "text" ? "text/plain; charset=utf-8" : format === "html" ? "text/html; charset=utf-8" : "application/json";
 
   return {
     requestSignature: {
@@ -202,6 +204,20 @@ function parseJsonObject(text: string): unknown {
   }
 }
 
+function selectModel(provider: string, model: string) {
+  if (provider === "openai") return openai(model);
+  if (provider === "anthropic") return anthropic(model);
+  if (provider === "ollama") {
+    const baseURL = process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434/v1";
+    const ollama = createOpenAICompatible({
+      name: "ollama",
+      baseURL,
+    });
+    return ollama(model);
+  }
+  return openai(model);
+}
+
 export async function generateMockResponse(input: AiGenerateInput, config: AppConfig): Promise<StoredMock> {
   const provider = process.env.MOCK_AI_PROVIDER ?? config.aiProvider ?? "openai";
 
@@ -221,7 +237,13 @@ export async function generateMockResponse(input: AiGenerateInput, config: AppCo
 
   if (provider === "none") return fallbackResponse(input, config, prompt);
 
-  if (provider !== "openai") {
+  const providerKeyMissing =
+    (provider === "openai" && !process.env.OPENAI_API_KEY) ||
+    (provider === "anthropic" && !process.env.ANTHROPIC_API_KEY);
+
+  if (providerKeyMissing) return fallbackResponse(input, config, prompt);
+
+  if (!["openai", "anthropic", "ollama"].includes(provider)) {
     const fallback = fallbackResponse(input, config, prompt);
     return {
       ...fallback,
@@ -232,12 +254,11 @@ export async function generateMockResponse(input: AiGenerateInput, config: AppCo
     };
   }
 
-  if (!process.env.OPENAI_API_KEY) return fallbackResponse(input, config, prompt);
-
   try {
+    const model = selectModel(provider, process.env.MOCK_AI_MODEL ?? config.aiModel ?? (provider === "anthropic" ? "claude-3-5-sonnet-latest" : provider === "ollama" ? "llama3.1:8b" : "gpt-5.4-mini"));
 
     const result = await generateText({
-      model: openai(process.env.MOCK_AI_MODEL ?? config.aiModel ?? "gpt-5.4-mini"),
+      model,
       prompt,
       maxOutputTokens: 1200,
       providerOptions: config.aiSeed !== undefined ? { openai: { seed: config.aiSeed } } : undefined,
@@ -262,7 +283,7 @@ export async function generateMockResponse(input: AiGenerateInput, config: AppCo
         source: "ai",
         createdAt: new Date().toISOString(),
         seed: config.aiSeed,
-        notes: "vercel-ai-sdk",
+        notes: `vercel-ai-sdk:${provider}`,
         ...(config.aiStorePrompt ? { prompt } : {}),
       },
     };

@@ -8,6 +8,7 @@ export interface AiGenerateInput {
   path: string;
   query: Record<string, string | string[]>;
   body: unknown;
+  requestHeaders?: Record<string, string | string[] | undefined>;
   context: string;
   nearbyExamples: Array<{ method: string; path: string; responseBody: unknown }>;
 }
@@ -44,15 +45,72 @@ function synthesizeFromExample(example: unknown, idHint?: string): unknown {
   return out;
 }
 
+function extractJsonObjectsFromContext(context: string): unknown[] {
+  const snippets: unknown[] = [];
+  const codeFenceRegex = /```json\s*([\s\S]*?)```/gi;
+  let m: RegExpExecArray | null;
+  while ((m = codeFenceRegex.exec(context)) !== null) {
+    try {
+      snippets.push(JSON.parse(m[1]));
+    } catch {}
+  }
+
+  const braceRegex = /\{[\s\S]*?\}/g;
+  const rawMatches = context.match(braceRegex) ?? [];
+  for (const raw of rawMatches.slice(0, 40)) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') snippets.push(parsed);
+    } catch {}
+  }
+
+  return snippets;
+}
+
+function pickContextShape(input: AiGenerateInput, idHint?: string): unknown {
+  const segments = input.path.toLowerCase().split('/').filter(Boolean);
+  const contextObjects = extractJsonObjectsFromContext(input.context);
+  if (contextObjects.length === 0) return undefined;
+
+  const scored = contextObjects.map((obj) => {
+    const text = JSON.stringify(obj).toLowerCase();
+    let score = 0;
+    for (const s of segments) if (s.length > 2 && text.includes(s)) score += 1;
+    if (idHint && text.includes('id')) score += 1;
+    return { obj, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  const best = scored[0];
+  if (!best || best.score <= 0) return undefined;
+
+  return synthesizeFromExample(best.obj, idHint) ?? best.obj;
+}
+
+function detectPreferredFormat(input: AiGenerateInput): 'json' | 'text' | 'html' {
+  const acceptRaw = input.requestHeaders?.accept;
+  const accept = Array.isArray(acceptRaw) ? acceptRaw.join(',') : (acceptRaw ?? '');
+  const a = accept.toLowerCase();
+
+  if (a.includes('text/html')) return 'html';
+  if (a.includes('text/plain') && !a.includes('application/json')) return 'text';
+  return 'json';
+}
+
 function synthesizeFallbackBody(input: AiGenerateInput, signature: string): unknown {
   const segments = input.path.split('/').filter(Boolean);
   const last = segments[segments.length - 1];
   const prev = segments[segments.length - 2];
   const idHint = last && looksLikeId(last) ? last : undefined;
 
+  const contextShape = pickContextShape(input, idHint);
+  if (contextShape && typeof contextShape === 'object') {
+    return { ...(contextShape as Record<string, unknown>), generated: true, signature };
+  }
+
   const nearbyExample = input.nearbyExamples.find((e) => e.responseBody && typeof e.responseBody === 'object')?.responseBody;
   const shaped = synthesizeFromExample(nearbyExample, idHint);
-  if (shaped) return shaped;
+  if (shaped) return { ...(shaped as Record<string, unknown>), generated: true, signature };
 
   if (input.method === 'GET' && idHint && prev) {
     const entity = singularize(prev);
@@ -95,6 +153,18 @@ function synthesizeFallbackBody(input: AiGenerateInput, signature: string): unkn
 function fallbackResponse(input: AiGenerateInput, config: AppConfig): StoredMock {
   const seedPart = config.aiSeed ?? 0;
   const signature = shortHash(JSON.stringify({ ...input, seedPart }));
+  const format = detectPreferredFormat(input);
+
+  const bodyObject = synthesizeFallbackBody(input, signature);
+  const responseBody =
+    format === 'text'
+      ? `Mock response for ${input.method} ${input.path}`
+      : format === 'html'
+        ? `<html><body><pre>${JSON.stringify(bodyObject, null, 2)}</pre></body></html>`
+        : bodyObject;
+
+  const contentType = format === 'text' ? 'text/plain; charset=utf-8' : format === 'html' ? 'text/html; charset=utf-8' : 'application/json';
+
   return {
     requestSignature: {
       method: input.method,
@@ -105,10 +175,10 @@ function fallbackResponse(input: AiGenerateInput, config: AppConfig): StoredMock
     requestSnapshot: { query: input.query, body: input.body },
     response: {
       status: 200,
-      headers: { "content-type": "application/json", "x-mock-source": "ai-fallback" },
-      body: synthesizeFallbackBody(input, signature),
+      headers: { "content-type": contentType, "x-mock-source": "ai-fallback" },
+      body: responseBody,
     },
-    meta: { source: "ai", createdAt: new Date().toISOString(), seed: config.aiSeed, notes: "fallback" },
+    meta: { source: "ai", createdAt: new Date().toISOString(), seed: config.aiSeed, notes: `fallback:${format}` },
   };
 }
 

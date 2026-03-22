@@ -214,9 +214,20 @@ export function App() {
     setSelectedMethod(method);
     setSelectedPath(path);
     const data = await (await fetch(`/-/api/variants?method=${encodeURIComponent(method)}&path=${encodeURIComponent(path)}`)).json();
-    setVariantList(data.variants ?? []);
-    setSelectedVariantId('');
-    setVariantEditor('');
+    const variants = data.variants ?? [];
+    setVariantList(variants);
+
+    if (variants.length === 1) {
+      const onlyId = variants[0].id;
+      setSelectedVariantId(onlyId);
+      const one = await (
+        await fetch(`/-/api/variant?method=${encodeURIComponent(method)}&path=${encodeURIComponent(path)}&id=${encodeURIComponent(onlyId)}`)
+      ).json();
+      setVariantEditor(JSON.stringify(one.mock, null, 2));
+    } else {
+      setSelectedVariantId('');
+      setVariantEditor('');
+    }
   }
 
   async function selectVariant(id: string) {

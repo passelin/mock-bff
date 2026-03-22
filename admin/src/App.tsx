@@ -82,6 +82,7 @@ export function App() {
   const [openApiFile, setOpenApiFile] = useState<File | null>(null);
   const [editorSplit, setEditorSplit] = useState(40);
   const [endpointSearch, setEndpointSearch] = useState('');
+  const [selectedEndpointKeys, setSelectedEndpointKeys] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     refresh();
@@ -99,6 +100,9 @@ export function App() {
     if (!q) return endpoints;
     return endpoints.filter((ep) => `${ep.method} ${ep.path}`.toLowerCase().includes(q));
   }, [endpoints, endpointSearch]);
+
+  const allFilteredSelected =
+    filteredEndpoints.length > 0 && filteredEndpoints.every((ep) => selectedEndpointKeys[`${ep.method} ${ep.path}`]);
 
   const configError = useMemo(() => {
     if (!configText.trim()) return 'Config cannot be empty';
@@ -189,22 +193,49 @@ export function App() {
     }
   }
 
-  async function clearAllEndpoints() {
-    const ok = window.confirm('Clear ALL endpoints and variants? This cannot be undone.');
+  function toggleEndpointSelection(method: string, path: string, checked: boolean) {
+    const key = `${method} ${path}`;
+    setSelectedEndpointKeys((prev) => ({ ...prev, [key]: checked }));
+  }
+
+  function setAllFilteredSelection(checked: boolean) {
+    setSelectedEndpointKeys((prev) => {
+      const next = { ...prev };
+      for (const ep of filteredEndpoints) {
+        next[`${ep.method} ${ep.path}`] = checked;
+      }
+      return next;
+    });
+  }
+
+  async function clearSelectedEndpoints() {
+    const selected = filteredEndpoints.filter((ep) => selectedEndpointKeys[`${ep.method} ${ep.path}`]);
+    if (selected.length === 0) {
+      showToast('No endpoints selected');
+      return;
+    }
+
+    const ok = window.confirm(`Delete ${selected.length} selected endpoint(s) and all their variants?`);
     if (!ok) return;
+
     setBusy(true);
     try {
-      const res = await fetch('/-/api/endpoints', { method: 'DELETE' });
-      if (!res.ok) throw new Error('clear all failed');
+      for (const ep of selected) {
+        const res = await fetch(`/-/api/endpoint?method=${encodeURIComponent(ep.method)}&path=${encodeURIComponent(ep.path)}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('delete failed');
+      }
+
       setSelectedMethod('');
       setSelectedPath('');
       setVariantList([]);
       setSelectedVariantId('');
       setVariantEditor('');
+      setSelectedEndpointKeys({});
+
       await refresh();
-      showToast('All endpoints cleared');
+      showToast('Selected endpoints deleted');
     } catch {
-      showToast('Failed to clear all endpoints');
+      showToast('Failed to delete selected endpoints');
     } finally {
       setBusy(false);
     }
@@ -452,17 +483,29 @@ export function App() {
             <Card
               title="Endpoint Management"
               subtitle="Search, review and clear endpoint groups."
-              actions={<button onClick={clearAllEndpoints} disabled={busy || endpoints.length === 0} className="rounded-xl border border-rose-700 text-rose-300 px-3 py-2 text-xs hover:bg-rose-900/30 disabled:opacity-50">Clear all</button>}
+              actions={<button onClick={clearSelectedEndpoints} disabled={busy || filteredEndpoints.filter((ep) => selectedEndpointKeys[`${ep.method} ${ep.path}`]).length === 0} className="rounded-xl border border-rose-700 text-rose-300 px-3 py-2 text-xs hover:bg-rose-900/30 disabled:opacity-50">Delete selected</button>}
             >
               <div className="mb-3">
                 <input value={endpointSearch} onChange={(e) => setEndpointSearch(e.target.value)} placeholder="Search endpoints (method or path)…" className="w-full md:w-96 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-zinc-100 placeholder-zinc-500" />
               </div>
               <div className="overflow-y-auto overflow-x-hidden max-h-[32rem] rounded-xl border border-zinc-800">
                 <table className="w-full table-fixed text-sm">
-                  <thead className="bg-zinc-800/60 text-zinc-300"><tr><th className="w-24 px-3 py-2 text-left">Method</th><th className="px-3 py-2 text-left">Path</th><th className="w-20 px-3 py-2 text-left">Variants</th><th className="w-20 px-3 py-2 text-left">Default</th><th className="w-24 px-3 py-2 text-left"></th></tr></thead>
+                  <thead className="bg-zinc-800/60 text-zinc-300">
+                    <tr>
+                      <th className="w-10 px-3 py-2 text-left">
+                        <input type="checkbox" checked={allFilteredSelected} onChange={(e) => setAllFilteredSelection(e.target.checked)} />
+                      </th>
+                      <th className="w-24 px-3 py-2 text-left">Method</th>
+                      <th className="px-3 py-2 text-left">Path</th>
+                      <th className="w-20 px-3 py-2 text-left">Variants</th>
+                      <th className="w-20 px-3 py-2 text-left">Default</th>
+                      <th className="w-24 px-3 py-2 text-left"></th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {filteredEndpoints.map((ep, i) => (
                       <tr key={ep.method + ep.path + i} className="border-t border-zinc-800 hover:bg-zinc-800/30">
+                        <td className="px-3 py-2"><input type="checkbox" checked={Boolean(selectedEndpointKeys[`${ep.method} ${ep.path}`])} onChange={(e) => toggleEndpointSelection(ep.method, ep.path, e.target.checked)} /></td>
                         <td className="px-3 py-2 font-mono text-brand-300 whitespace-nowrap">{ep.method}</td>
                         <td className="px-3 py-2 font-mono break-all">{ep.path}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{ep.variants}</td>
@@ -470,7 +513,7 @@ export function App() {
                         <td className="px-3 py-2"><button onClick={() => clearEndpoint(ep.method, ep.path)} className="rounded-lg border border-rose-700 text-rose-300 px-2 py-1 text-xs hover:bg-rose-900/30 whitespace-nowrap">Clear</button></td>
                       </tr>
                     ))}
-                    {filteredEndpoints.length === 0 ? <tr><td colSpan={5} className="px-3 py-6 text-sm text-zinc-400">No matching endpoints.</td></tr> : null}
+                    {filteredEndpoints.length === 0 ? <tr><td colSpan={6} className="px-3 py-6 text-sm text-zinc-400">No matching endpoints.</td></tr> : null}
                   </tbody>
                 </table>
               </div>
@@ -499,13 +542,18 @@ export function App() {
                   <Card
                     title="Endpoints"
                     subtitle="Pick endpoint to load variants."
-                    actions={<button onClick={clearAllEndpoints} disabled={busy || endpoints.length === 0} className="rounded-xl border border-rose-700 text-rose-300 px-3 py-2 text-xs hover:bg-rose-900/30 disabled:opacity-50">Delete all</button>}
+                    actions={<button onClick={clearSelectedEndpoints} disabled={busy || filteredEndpoints.filter((ep) => selectedEndpointKeys[`${ep.method} ${ep.path}`]).length === 0} className="rounded-xl border border-rose-700 text-rose-300 px-3 py-2 text-xs hover:bg-rose-900/30 disabled:opacity-50">Delete selected</button>}
                   >
+                    <div className="mb-3 flex items-center gap-2">
+                      <input type="checkbox" checked={allFilteredSelected} onChange={(e) => setAllFilteredSelection(e.target.checked)} />
+                      <span className="text-xs text-zinc-400">Select / deselect all shown</span>
+                    </div>
                     <input value={endpointSearch} onChange={(e) => setEndpointSearch(e.target.value)} placeholder="Search endpoints..." className="mb-3 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs" />
                     <div className="max-h-[28rem] overflow-auto space-y-2">
                       {filteredEndpoints.map((ep, i) => (
                         <div key={ep.method + ep.path + i} className={`w-full rounded-lg border px-3 py-2 ${selectedMethod===ep.method && selectedPath===ep.path ? 'border-brand-500 bg-brand-500/10' : 'border-zinc-700 hover:bg-zinc-800'}`}>
-                          <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <input type="checkbox" checked={Boolean(selectedEndpointKeys[`${ep.method} ${ep.path}`])} onChange={(e) => toggleEndpointSelection(ep.method, ep.path, e.target.checked)} className="shrink-0" />
                             <button onClick={() => loadVariants(ep.method, ep.path)} className="flex-1 text-left">
                               <div className="font-mono text-xs text-brand-300">{ep.method}</div>
                               <div className="font-mono text-xs break-all mt-1">{ep.path}</div>

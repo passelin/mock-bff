@@ -220,6 +220,34 @@ describe("mock bff", () => {
     await app.close();
   });
 
+  it("creates brand new endpoint/variant via admin variant API", async () => {
+    const { app } = await makeApp();
+
+    const mock = {
+      requestSignature: { method: "GET", path: "/new/root/path", queryHash: "manual", bodyHash: "manual" },
+      requestSnapshot: { query: {}, body: {} },
+      response: { status: 200, headers: { "content-type": "application/json" }, body: { hello: "world" } },
+      meta: { source: "manual", createdAt: new Date().toISOString() },
+    };
+
+    const create = await app.inject({
+      method: "PUT",
+      url: "/-/api/variant",
+      payload: { method: "GET", path: "/new/root/path", id: "manual_v1", mock },
+    });
+    expect(create.statusCode).toBe(200);
+
+    const endpoints = await app.inject({ method: "GET", url: "/-/api/endpoints" });
+    expect(endpoints.statusCode).toBe(200);
+    expect(endpoints.json().find((e: any) => e.path === "/new/root/path")).toBeTruthy();
+
+    const replay = await app.inject({ method: "GET", url: "/new/root/path" });
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json()).toEqual({ hello: "world" });
+
+    await app.close();
+  });
+
   it("clears individual endpoint and all endpoints", async () => {
     const { app } = await makeApp();
     await app.inject({ method: "POST", url: "/-/api/har", ...multipartPayload("sample.har", HAR_SAMPLE) });

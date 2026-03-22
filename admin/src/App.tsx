@@ -1,6 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Clipboard, ClipboardCheck, FileUp, Gauge, Route as RouteIcon, Settings, Sparkles, Upload } from 'lucide-react';
-import { NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import {
+  Check,
+  Clipboard,
+  ClipboardCheck,
+  FileUp,
+  Gauge,
+  ListTree,
+  Logs,
+  Route as RouteIcon,
+  Settings,
+  Sparkles,
+  Upload,
+} from 'lucide-react';
+import { NavLink, Route, Routes } from 'react-router-dom';
 
 type Endpoint = { method: string; path: string; variants: number; hasDefault: boolean };
 type VariantMeta = { id: string; file: string; source?: string; status?: number; createdAt?: string };
@@ -46,13 +58,16 @@ function Tab({ to, label, icon }: { to: string; label: string; icon?: React.Reac
   );
 }
 
-function Pill({ children }: { children: React.ReactNode }) {
-  return <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300">{children}</span>;
+function StatCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-4">
+      <p className="text-xs uppercase tracking-wide text-zinc-400">{label}</p>
+      <p className="mt-1 text-2xl font-semibold text-zinc-100">{value}</p>
+    </div>
+  );
 }
 
 export function App() {
-  const location = useLocation();
-
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [requests, setRequests] = useState<ReqLog[]>([]);
   const [misses, setMisses] = useState<any[]>([]);
@@ -88,12 +103,7 @@ export function App() {
 
   const stats = useMemo(() => {
     const totalVariants = endpoints.reduce((acc, e) => acc + e.variants, 0);
-    return {
-      endpoints: endpoints.length,
-      variants: totalVariants,
-      misses: misses.length,
-      requests: requests.length,
-    };
+    return { endpoints: endpoints.length, variants: totalVariants, misses: misses.length, requests: requests.length };
   }, [endpoints, misses, requests]);
 
   const filteredEndpoints = useMemo(() => {
@@ -135,21 +145,17 @@ export function App() {
   async function loadEndpoints() {
     setEndpoints(await (await fetch('/-/api/endpoints')).json());
   }
-
   async function loadRequests() {
     const data = await (await fetch('/-/api/requests?limit=100')).json();
     setRequests(data.rows ?? []);
   }
-
   async function loadMisses() {
     const data = await (await fetch('/-/api/misses')).json();
     setMisses(Array.isArray(data) ? data : []);
   }
-
   async function loadConfig() {
     setConfigText(JSON.stringify(await (await fetch('/-/api/config')).json(), null, 2));
   }
-
   async function loadContext() {
     const d = await (await fetch('/-/api/context')).json();
     setContext(d.context || '');
@@ -261,26 +267,10 @@ export function App() {
       const id = createVariantId.trim() || 'default_manual';
 
       const mock = {
-        requestSignature: {
-          method,
-          path,
-          queryHash: 'manual',
-          bodyHash: 'manual',
-        },
-        requestSnapshot: {
-          query: {},
-          body: {},
-        },
-        response: {
-          status: Number(createStatus) || 200,
-          headers: { 'content-type': 'application/json' },
-          body,
-        },
-        meta: {
-          source: 'manual',
-          createdAt: new Date().toISOString(),
-          notes: 'created-from-admin-ui',
-        },
+        requestSignature: { method, path, queryHash: 'manual', bodyHash: 'manual' },
+        requestSnapshot: { query: {}, body: {} },
+        response: { status: Number(createStatus) || 200, headers: { 'content-type': 'application/json' }, body },
+        meta: { source: 'manual', createdAt: new Date().toISOString(), notes: 'created-from-admin-ui' },
       };
 
       const res = await fetch('/-/api/variant', {
@@ -334,12 +324,19 @@ export function App() {
     }
   }
 
-  function go(route: '#/' | '#/variants' | '#/settings') {
-    window.location.hash = route;
-  }
-
-  async function copyLink(kind: 'current' | 'dashboard' | 'variants' | 'settings') {
-    const hash = kind === 'current' ? window.location.hash || '#/' : kind === 'dashboard' ? '#/' : kind === 'variants' ? '#/variants' : '#/settings';
+  async function copyLink(kind: 'current' | 'dashboard' | 'endpoints' | 'variants' | 'logs' | 'settings') {
+    const hash =
+      kind === 'current'
+        ? window.location.hash || '#/'
+        : kind === 'dashboard'
+          ? '#/'
+          : kind === 'endpoints'
+            ? '#/endpoints'
+            : kind === 'variants'
+              ? '#/variants'
+              : kind === 'logs'
+                ? '#/logs'
+                : '#/settings';
     const url = `${window.location.origin}/-/admin${hash}`;
     await navigator.clipboard.writeText(url);
     setCopied(kind);
@@ -352,51 +349,45 @@ export function App() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight inline-flex items-center gap-3"><Sparkles className="h-7 w-7 text-brand-400" />Mock BFF Admin</h1>
-            <p className="mt-2 text-sm text-zinc-400">Professional control plane for HAR ingest, variant curation, and AI-backed mocking.</p>
-            <p className="mt-1 text-xs text-zinc-500">Route: {location.pathname}{location.hash || '#/'}</p>
+            <p className="mt-2 text-sm text-zinc-400">Turn HAR traffic into a clean, editable mock backend for rapid UI development.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={() => copyLink('current')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800 inline-flex items-center gap-2">{copied === 'current' ? <ClipboardCheck className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}{copied === 'current' ? 'Copied' : 'Copy current'}</button>
-            <button onClick={() => copyLink('dashboard')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800 inline-flex items-center gap-2">{copied === 'dashboard' ? <Check className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}{copied === 'dashboard' ? 'Copied' : 'Copy dashboard'}</button>
-            <button onClick={() => copyLink('variants')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800 inline-flex items-center gap-2">{copied === 'variants' ? <Check className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}{copied === 'variants' ? 'Copied' : 'Copy variants'}</button>
-            <button onClick={() => copyLink('settings')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800 inline-flex items-center gap-2">{copied === 'settings' ? <Check className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}{copied === 'settings' ? 'Copied' : 'Copy settings'}</button>
+            <button onClick={() => copyLink('dashboard')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800 inline-flex items-center gap-2">{copied === 'dashboard' ? <Check className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}Dashboard</button>
+            <button onClick={() => copyLink('endpoints')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800 inline-flex items-center gap-2">{copied === 'endpoints' ? <Check className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}Endpoints</button>
+            <button onClick={() => copyLink('variants')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800 inline-flex items-center gap-2">{copied === 'variants' ? <Check className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}Variants</button>
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
           <Tab to="/" label="Dashboard" icon={<Gauge className="h-4 w-4" />} />
+          <Tab to="/endpoints" label="Endpoints" icon={<ListTree className="h-4 w-4" />} />
           <Tab to="/variants" label="Variants" icon={<RouteIcon className="h-4 w-4" />} />
+          <Tab to="/logs" label="Logs" icon={<Logs className="h-4 w-4" />} />
           <Tab to="/settings" label="Settings" icon={<Settings className="h-4 w-4" />} />
         </div>
       </header>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Pill>Endpoints: {stats.endpoints}</Pill>
-        <Pill>Variants: {stats.variants}</Pill>
-        <Pill>Misses: {stats.misses}</Pill>
-        <Pill>Recent req logs: {stats.requests}</Pill>
-      </div>
-
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 flex flex-wrap gap-2 items-center">
-        <span className="text-xs text-zinc-400 mr-2">Quick actions</span>
-        <button onClick={refresh} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs hover:bg-zinc-800">Refresh data</button>
-        <button onClick={() => go('#/variants')} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs hover:bg-zinc-800">Go to variants</button>
-        <button onClick={() => go('#/settings')} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs hover:bg-zinc-800">Go to settings</button>
-        <div className="ml-auto w-full md:w-80">
-          <input
-            value={endpointSearch}
-            onChange={(e) => setEndpointSearch(e.target.value)}
-            placeholder="Search endpoints (method or path)…"
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-zinc-100 placeholder-zinc-500"
-          />
-        </div>
-      </div>
 
       <Routes>
         <Route
           path="/"
           element={
             <>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <StatCard label="Endpoints" value={stats.endpoints} />
+                <StatCard label="Variants" value={stats.variants} />
+                <StatCard label="Misses" value={stats.misses} />
+                <StatCard label="Recent Req Logs" value={stats.requests} />
+              </div>
+
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 flex flex-wrap gap-2 items-center">
+                <span className="text-xs text-zinc-400 mr-2">Quick actions</span>
+                <button onClick={refresh} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs hover:bg-zinc-800">Refresh data</button>
+                <button onClick={() => (window.location.hash = '#/endpoints')} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs hover:bg-zinc-800">Manage endpoints</button>
+                <button onClick={() => (window.location.hash = '#/variants')} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs hover:bg-zinc-800">Edit variants</button>
+                <button onClick={() => (window.location.hash = '#/logs')} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs hover:bg-zinc-800">View logs</button>
+              </div>
+
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 <Card title="Import HAR" subtitle="Upload real traffic captures to generate endpoint variants." tone="highlight" actions={<button disabled={busy || !harFile} onClick={() => uploadFile('/-/api/har', harFile, 'HAR imported')} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50 inline-flex items-center gap-2"><Upload className="h-4 w-4" />Upload HAR</button>}>
                   <input type="file" accept=".har,.json" onChange={(e) => setHarFile(e.target.files?.[0] ?? null)} className="block w-full text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-brand-600 file:px-4 file:py-2 file:text-white hover:file:bg-brand-500" />
@@ -406,48 +397,39 @@ export function App() {
                   <input type="file" accept=".json,.yaml,.yml" onChange={(e) => setOpenApiFile(e.target.files?.[0] ?? null)} className="block w-full text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-white hover:file:bg-indigo-500" />
                 </Card>
               </div>
-
-              <Card
-                title="Endpoints"
-                subtitle="Registered endpoint groups currently available for replay."
-                actions={<button onClick={clearAllEndpoints} disabled={busy || endpoints.length === 0} className="rounded-xl border border-rose-700 text-rose-300 px-3 py-2 text-xs hover:bg-rose-900/30 disabled:opacity-50">Clear all</button>}
-              >
-                <div className="overflow-y-auto overflow-x-hidden max-h-[26rem] rounded-xl border border-zinc-800">
-                  <table className="w-full table-fixed text-sm">
-                    <thead className="bg-zinc-800/60 text-zinc-300"><tr><th className="w-24 px-3 py-2 text-left">Method</th><th className="px-3 py-2 text-left">Path</th><th className="w-20 px-3 py-2 text-left">Variants</th><th className="w-20 px-3 py-2 text-left">Default</th><th className="w-24 px-3 py-2 text-left"></th></tr></thead>
-                    <tbody>
-                      {filteredEndpoints.map((ep, i) => (
-                        <tr key={ep.method + ep.path + i} className="border-t border-zinc-800 hover:bg-zinc-800/30">
-                          <td className="px-3 py-2 font-mono text-brand-300 whitespace-nowrap">{ep.method}</td>
-                          <td className="px-3 py-2 font-mono break-all">{ep.path}</td>
-                          <td className="px-3 py-2 whitespace-nowrap">{ep.variants}</td>
-                          <td className="px-3 py-2 whitespace-nowrap">{ep.hasDefault ? 'Yes' : 'No'}</td>
-                          <td className="px-3 py-2"><button onClick={() => clearEndpoint(ep.method, ep.path)} className="rounded-lg border border-rose-700 text-rose-300 px-2 py-1 text-xs hover:bg-rose-900/30 whitespace-nowrap">Clear</button></td>
-                        </tr>
-                      ))}
-                      {filteredEndpoints.length === 0 ? <tr><td colSpan={5} className="px-3 py-6 text-sm text-zinc-400">No matching endpoints.</td></tr> : null}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <Card title="Recent Requests" subtitle="In-memory rolling logs (newest first).">
-                  {requests.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-zinc-700 p-6 text-sm text-zinc-400">No requests yet. Hit your mock endpoints to populate this feed.</div>
-                  ) : (
-                    <pre className="max-h-72 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs">{JSON.stringify(requests, null, 2)}</pre>
-                  )}
-                </Card>
-                <Card title="Misses" subtitle="Unmatched requests captured during runtime.">
-                  {misses.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-zinc-700 p-6 text-sm text-zinc-400">No misses recorded. Nice coverage so far.</div>
-                  ) : (
-                    <pre className="max-h-72 overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs">{JSON.stringify(misses, null, 2)}</pre>
-                  )}
-                </Card>
-              </div>
             </>
+          }
+        />
+
+        <Route
+          path="/endpoints"
+          element={
+            <Card
+              title="Endpoint Management"
+              subtitle="Search, review and clear endpoint groups."
+              actions={<button onClick={clearAllEndpoints} disabled={busy || endpoints.length === 0} className="rounded-xl border border-rose-700 text-rose-300 px-3 py-2 text-xs hover:bg-rose-900/30 disabled:opacity-50">Clear all</button>}
+            >
+              <div className="mb-3">
+                <input value={endpointSearch} onChange={(e) => setEndpointSearch(e.target.value)} placeholder="Search endpoints (method or path)…" className="w-full md:w-96 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-zinc-100 placeholder-zinc-500" />
+              </div>
+              <div className="overflow-y-auto overflow-x-hidden max-h-[32rem] rounded-xl border border-zinc-800">
+                <table className="w-full table-fixed text-sm">
+                  <thead className="bg-zinc-800/60 text-zinc-300"><tr><th className="w-24 px-3 py-2 text-left">Method</th><th className="px-3 py-2 text-left">Path</th><th className="w-20 px-3 py-2 text-left">Variants</th><th className="w-20 px-3 py-2 text-left">Default</th><th className="w-24 px-3 py-2 text-left"></th></tr></thead>
+                  <tbody>
+                    {filteredEndpoints.map((ep, i) => (
+                      <tr key={ep.method + ep.path + i} className="border-t border-zinc-800 hover:bg-zinc-800/30">
+                        <td className="px-3 py-2 font-mono text-brand-300 whitespace-nowrap">{ep.method}</td>
+                        <td className="px-3 py-2 font-mono break-all">{ep.path}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{ep.variants}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{ep.hasDefault ? 'Yes' : 'No'}</td>
+                        <td className="px-3 py-2"><button onClick={() => clearEndpoint(ep.method, ep.path)} className="rounded-lg border border-rose-700 text-rose-300 px-2 py-1 text-xs hover:bg-rose-900/30 whitespace-nowrap">Clear</button></td>
+                      </tr>
+                    ))}
+                    {filteredEndpoints.length === 0 ? <tr><td colSpan={5} className="px-3 py-6 text-sm text-zinc-400">No matching endpoints.</td></tr> : null}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
           }
         />
 
@@ -455,11 +437,7 @@ export function App() {
           path="/variants"
           element={
             <>
-              <Card
-                title="Create endpoint / variant"
-                subtitle="Manually add new endpoints and variants directly from the UI."
-                actions={<button onClick={createVariant} disabled={busy || !createPath.trim()} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Create</button>}
-              >
+              <Card title="Create endpoint / variant" subtitle="Manually add new endpoints and variants directly from the UI." actions={<button onClick={createVariant} disabled={busy || !createPath.trim()} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Create</button>}>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
                   <select value={createMethod} onChange={(e) => setCreateMethod(e.target.value)} className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm">
                     <option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
@@ -471,55 +449,70 @@ export function App() {
                 <textarea value={createBody} onChange={(e) => setCreateBody(e.target.value)} className="h-40 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />
               </Card>
 
-              <Card title="Endpoint Variant Review" subtitle="Select an endpoint then inspect or edit individual variants.">
-                <div className="overflow-y-auto overflow-x-hidden max-h-[26rem] rounded-xl border border-zinc-800">
-                  <table className="w-full table-fixed text-sm">
-                    <thead className="bg-zinc-800/60 text-zinc-300"><tr><th className="w-24 px-3 py-2 text-left">Method</th><th className="px-3 py-2 text-left">Path</th><th className="w-32 px-3 py-2 text-left"></th><th className="w-20 px-3 py-2 text-left"></th></tr></thead>
-                    <tbody>
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                <div className="xl:col-span-4 space-y-3">
+                  <Card title="Endpoints" subtitle="Pick endpoint to load variants.">
+                    <input value={endpointSearch} onChange={(e) => setEndpointSearch(e.target.value)} placeholder="Search endpoints..." className="mb-3 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs" />
+                    <div className="max-h-[28rem] overflow-auto space-y-2">
                       {filteredEndpoints.map((ep, i) => (
-                        <tr key={ep.method + ep.path + i} className="border-t border-zinc-800 hover:bg-zinc-800/30">
-                          <td className="px-3 py-2 font-mono text-brand-300 whitespace-nowrap">{ep.method}</td>
-                          <td className="px-3 py-2 font-mono break-all">{ep.path}</td>
-                          <td className="px-3 py-2"><button className="rounded-lg border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 whitespace-nowrap" onClick={() => loadVariants(ep.method, ep.path)}>Review variants</button></td>
-                          <td className="px-3 py-2"><button onClick={() => clearEndpoint(ep.method, ep.path)} className="rounded-lg border border-rose-700 text-rose-300 px-2 py-1 text-xs hover:bg-rose-900/30 whitespace-nowrap">Clear</button></td>
-                        </tr>
-                      ))}
-                      {filteredEndpoints.length === 0 ? <tr><td colSpan={4} className="px-3 py-6 text-sm text-zinc-400">No matching endpoints.</td></tr> : null}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-zinc-400">Pane split</span>
-                  <input type="range" min={25} max={65} value={editorSplit} onChange={(e) => setEditorSplit(Number(e.target.value))} className="w-56" />
-                  <span className="text-xs text-zinc-500">{editorSplit}% / {100 - editorSplit}%</span>
-                </div>
-                <div className="grid gap-6" style={{ gridTemplateColumns: `minmax(0, ${editorSplit}fr) minmax(0, ${100 - editorSplit}fr)` }}>
-                  <Card title={`Variants ${selectedMethod} ${selectedPath}`} subtitle="Pick a variant to inspect/edit.">
-                    <div className="space-y-2 max-h-80 overflow-auto">
-                      {variantList.map((v) => (
-                        <button key={v.id} onClick={() => selectVariant(v.id)} className={`w-full rounded-lg border px-3 py-2 text-left transition ${selectedVariantId === v.id ? 'border-brand-500 bg-brand-500/10' : 'border-zinc-700 hover:bg-zinc-800'}`}>
-                          <div className="font-mono text-xs">{v.id}</div>
-                          <div className="text-xs text-zinc-400 mt-1">{v.source} · status {v.status}</div>
+                        <button key={ep.method + ep.path + i} onClick={() => loadVariants(ep.method, ep.path)} className={`w-full rounded-lg border px-3 py-2 text-left ${selectedMethod===ep.method && selectedPath===ep.path ? 'border-brand-500 bg-brand-500/10' : 'border-zinc-700 hover:bg-zinc-800'}`}>
+                          <div className="font-mono text-xs text-brand-300">{ep.method}</div>
+                          <div className="font-mono text-xs break-all mt-1">{ep.path}</div>
                         </button>
                       ))}
-                      {variantList.length === 0 ? <p className="text-sm text-zinc-400">No variants loaded.</p> : null}
                     </div>
                   </Card>
+                </div>
 
-                  <Card
-                    title="Variant Editor"
-                    subtitle={selectedVariantId || 'Select a variant to edit'}
-                    actions={<div className="flex gap-2"><button onClick={() => { try { setVariantEditor(JSON.stringify(JSON.parse(variantEditor), null, 2)); } catch {} }} disabled={!selectedVariantId} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs">Format</button><button onClick={saveVariant} disabled={busy || !selectedVariantId || !!variantError} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Save variant</button></div>}
-                  >
-                    <textarea value={variantEditor} onChange={(e) => setVariantEditor(e.target.value)} className="h-80 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />
-                    {variantError ? <p className="mt-2 text-xs text-rose-400">{variantError}</p> : selectedVariantId ? <p className="mt-2 text-xs text-emerald-400">JSON valid</p> : null}
-                  </Card>
+                <div className="xl:col-span-8 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-zinc-400">Pane split</span>
+                    <input type="range" min={25} max={65} value={editorSplit} onChange={(e) => setEditorSplit(Number(e.target.value))} className="w-56" />
+                    <span className="text-xs text-zinc-500">{editorSplit}% / {100 - editorSplit}%</span>
+                  </div>
+                  <div className="grid gap-6" style={{ gridTemplateColumns: `minmax(0, ${editorSplit}fr) minmax(0, ${100 - editorSplit}fr)` }}>
+                    <Card title={`Variants ${selectedMethod} ${selectedPath}`} subtitle="Pick a variant to inspect/edit.">
+                      <div className="space-y-2 max-h-80 overflow-auto">
+                        {variantList.map((v) => (
+                          <button key={v.id} onClick={() => selectVariant(v.id)} className={`w-full rounded-lg border px-3 py-2 text-left transition ${selectedVariantId === v.id ? 'border-brand-500 bg-brand-500/10' : 'border-zinc-700 hover:bg-zinc-800'}`}>
+                            <div className="font-mono text-xs">{v.id}</div>
+                            <div className="text-xs text-zinc-400 mt-1">{v.source} · status {v.status}</div>
+                          </button>
+                        ))}
+                        {variantList.length === 0 ? <p className="text-sm text-zinc-400">No variants loaded.</p> : null}
+                      </div>
+                    </Card>
+
+                    <Card title="Variant Editor" subtitle={selectedVariantId || 'Select a variant to edit'} actions={<div className="flex gap-2"><button onClick={() => { try { setVariantEditor(JSON.stringify(JSON.parse(variantEditor), null, 2)); } catch {} }} disabled={!selectedVariantId} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs">Format</button><button onClick={saveVariant} disabled={busy || !selectedVariantId || !!variantError} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Save variant</button></div>}>
+                      <textarea value={variantEditor} onChange={(e) => setVariantEditor(e.target.value)} className="h-80 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />
+                      {variantError ? <p className="mt-2 text-xs text-rose-400">{variantError}</p> : selectedVariantId ? <p className="mt-2 text-xs text-emerald-400">JSON valid</p> : null}
+                    </Card>
+                  </div>
                 </div>
               </div>
             </>
+          }
+        />
+
+        <Route
+          path="/logs"
+          element={
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <Card title="Recent Requests" subtitle="In-memory rolling logs (newest first)." actions={<button onClick={loadRequests} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs">Refresh</button>}>
+                {requests.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-zinc-700 p-6 text-sm text-zinc-400">No requests yet. Hit your endpoints to populate this feed.</div>
+                ) : (
+                  <pre className="max-h-[34rem] overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs">{JSON.stringify(requests, null, 2)}</pre>
+                )}
+              </Card>
+              <Card title="Misses" subtitle="Unmatched requests captured during runtime." actions={<button onClick={loadMisses} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs">Refresh</button>}>
+                {misses.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-zinc-700 p-6 text-sm text-zinc-400">No misses recorded. Nice coverage so far.</div>
+                ) : (
+                  <pre className="max-h-[34rem] overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs">{JSON.stringify(misses, null, 2)}</pre>
+                )}
+              </Card>
+            </div>
           }
         />
 

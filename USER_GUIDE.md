@@ -52,19 +52,25 @@ Admin APIs are under:
 ### OpenAI
 ```bash
 export OPENAI_API_KEY=...
+# optional
+export OPENAI_BASE_URL=https://api.openai.com/v1
 mock-bff --provider openai --model gpt-5.4-mini
 ```
 
 ### Anthropic
 ```bash
 export ANTHROPIC_API_KEY=...
+# optional
+export ANTHROPIC_BASE_URL=https://api.anthropic.com/v1
 mock-bff --provider anthropic --model claude-3-5-sonnet-latest
 ```
 
 ### Ollama
 ```bash
+# optional (defaults to http://127.0.0.1:11434/v1)
+export OLLAMA_BASE_URL=http://localhost:11434/v1
 mock-bff --provider ollama --model llama3.1:8b
-# optional
+# optional CLI override
 mock-bff --provider ollama --model llama3.1:8b --ollama-base-url http://localhost:11434/v1
 ```
 

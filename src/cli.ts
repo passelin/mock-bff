@@ -15,11 +15,17 @@ Options:
   -a, --app-name <name>       App name label (default: local-app)
       --provider <name>       AI provider: openai|anthropic|ollama|none (default: openai)
       --model <id>            AI model id (provider-specific)
+      --openai-base-url <url> OpenAI-compatible base URL override for OpenAI provider
+      --anthropic-base-url <url> Anthropic base URL override
       --ollama-base-url <url> Ollama base URL (default: http://127.0.0.1:11434/v1)
   -h, --help                  Show help
 
 Environment:
   OPENAI_API_KEY              Required when --provider openai
+  ANTHROPIC_API_KEY           Required when --provider anthropic
+  OPENAI_BASE_URL             Optional OpenAI base URL override
+  ANTHROPIC_BASE_URL          Optional Anthropic base URL override
+  OLLAMA_BASE_URL             Optional Ollama base URL override (default http://127.0.0.1:11434/v1)
   MOCK_MAX_UPLOAD_BYTES       Multipart upload limit bytes (default: 250MB)
 `);
 }
@@ -41,6 +47,9 @@ function parseArgs(argv: string[]) {
     else if (a === "-a" || a === "--app-name") out.appName = eat();
     else if (a === "--provider") out.provider = eat();
     else if (a === "--model") out.model = eat();
+    else if (a === "--openai-base-url") out.openaiBaseUrl = eat();
+    else if (a === "--anthropic-base-url") out.anthropicBaseUrl = eat();
+    else if (a === "--ollama-base-url") out.ollamaBaseUrl = eat();
     else throw new Error(`Unknown option: ${a}`);
   }
   return out;
@@ -55,6 +64,9 @@ async function main() {
 
   if (args.provider) process.env.MOCK_AI_PROVIDER = String(args.provider);
   if (args.model) process.env.MOCK_AI_MODEL = String(args.model);
+  if (args.openaiBaseUrl) process.env.OPENAI_BASE_URL = String(args.openaiBaseUrl);
+  if (args.anthropicBaseUrl) process.env.ANTHROPIC_BASE_URL = String(args.anthropicBaseUrl);
+  if (args.ollamaBaseUrl) process.env.OLLAMA_BASE_URL = String(args.ollamaBaseUrl);
 
   const rootDir = args.root ? path.resolve(String(args.root)) : process.cwd();
 

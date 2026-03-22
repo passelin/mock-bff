@@ -78,7 +78,10 @@ mock-bff --provider anthropic --model claude-3-5-sonnet-latest
 # default base URL is http://127.0.0.1:11434/v1
 mock-bff --provider ollama --model llama3.1:8b
 
-# custom Ollama URL
+# override with env var or CLI flag
+export OLLAMA_BASE_URL=http://localhost:11434/v1
+mock-bff --provider ollama --model llama3.1:8b
+# or
 mock-bff --provider ollama --model llama3.1:8b --ollama-base-url http://localhost:11434/v1
 ```
 

@@ -220,6 +220,28 @@ describe("mock bff", () => {
     await app.close();
   });
 
+  it("returns 404 for non-api style asset requests", async () => {
+    const { app } = await makeApp();
+
+    const res = await app.inject({ method: "GET", url: "/favicon.ico" });
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error).toContain("Non-API request");
+
+    await app.close();
+  });
+
+  it("fallback generation infers meaningful entity for id-based GET", async () => {
+    const { app } = await makeApp();
+
+    const res = await app.inject({ method: "GET", url: "/api/users/1234" });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["x-mock-source"]).toMatch(/^ai/);
+    expect(res.json()).toHaveProperty("id");
+    expect(String(res.json().id)).toMatch(/1234|\d+/);
+
+    await app.close();
+  });
+
   it("creates brand new endpoint/variant via admin variant API", async () => {
     const { app } = await makeApp();
 

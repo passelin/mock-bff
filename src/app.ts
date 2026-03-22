@@ -346,6 +346,7 @@ export async function createApp(options: CreateAppOptions) {
       path: fullPath,
       query,
       body,
+      requestHeaders: req.headers as Record<string, string | string[] | undefined>,
       context,
       nearbyExamples: variants.slice(0, 5).map((v) => ({ method, path: fullPath, responseBody: v.response.body })),
     }, config);

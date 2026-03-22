@@ -254,20 +254,20 @@ export async function createApp(options: CreateAppOptions) {
     const id = req.query.id;
     if (!method || !apiPath || !id) return reply.code(400).send({ error: "method, path, id are required" });
 
+    const existing = await storage.listVariants(method, apiPath);
+    if (existing.length <= 1) {
+      return reply.code(400).send({
+        error: "Cannot delete the last variant. Delete the endpoint instead.",
+      });
+    }
+
     await storage.clearVariant(method, apiPath, id);
 
-    const remaining = await storage.listVariants(method, apiPath);
-    if (remaining.length === 0) {
-      await storage.clearEndpoint(method, apiPath);
-      const idx = await storage.readIndex();
-      await storage.writeIndex(idx.filter((e) => !(e.method === method && e.path === apiPath)));
-    } else {
-      const idx = await storage.readIndex();
-      const entry = idx.find((e) => e.method === method && e.path === apiPath);
-      if (entry) {
-        entry.variants = entry.variants.filter((p) => !p.endsWith(`/${id}.json`));
-        await storage.writeIndex(idx);
-      }
+    const idx = await storage.readIndex();
+    const entry = idx.find((e) => e.method === method && e.path === apiPath);
+    if (entry) {
+      entry.variants = entry.variants.filter((p) => !p.endsWith(`/${id}.json`));
+      await storage.writeIndex(idx);
     }
 
     return { deleted: true };

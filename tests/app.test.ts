@@ -242,6 +242,28 @@ describe("mock bff", () => {
     await app.close();
   });
 
+  it("uses similar request response shape for fallback generation", async () => {
+    const { app } = await makeApp();
+
+    await app.inject({ method: "PATCH", url: "/-/api/config", payload: { aiProvider: "none", aiEnabled: true } });
+
+    const mock = {
+      requestSignature: { method: "GET", path: "/api/users/1234", queryHash: "manual", bodyHash: "manual" },
+      requestSnapshot: { query: {}, body: {} },
+      response: { status: 200, headers: { "content-type": "application/json" }, body: { id: "1234", fullName: "Avery Chen", role: "admin" } },
+      meta: { source: "manual", createdAt: new Date().toISOString() },
+    };
+
+    await app.inject({ method: "PUT", url: "/-/api/variant", payload: { method: "GET", path: "/api/users/1234", id: "manual_user_1234", mock } });
+
+    const res = await app.inject({ method: "GET", url: "/api/users/1111" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toHaveProperty("fullName");
+    expect(res.json()).toHaveProperty("role");
+
+    await app.close();
+  });
+
   it("creates brand new endpoint/variant via admin variant API", async () => {
     const { app } = await makeApp();
 

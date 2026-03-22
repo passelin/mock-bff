@@ -47,6 +47,20 @@ function parseJsonObject(text: string): unknown {
 }
 
 export async function generateMockResponse(input: AiGenerateInput, config: AppConfig): Promise<StoredMock> {
+  const provider = process.env.MOCK_AI_PROVIDER ?? config.aiProvider ?? "openai";
+  if (provider === "none") return fallbackResponse(input, config);
+
+  if (provider !== "openai") {
+    const fallback = fallbackResponse(input, config);
+    return {
+      ...fallback,
+      meta: {
+        ...fallback.meta,
+        notes: `unsupported-provider:${provider}`,
+      },
+    };
+  }
+
   if (!process.env.OPENAI_API_KEY) return fallbackResponse(input, config);
 
   try {
@@ -61,7 +75,7 @@ export async function generateMockResponse(input: AiGenerateInput, config: AppCo
     ].join("\n\n");
 
     const result = await generateText({
-      model: openai(config.aiModel ?? "gpt-5.4-mini"),
+      model: openai(process.env.MOCK_AI_MODEL ?? config.aiModel ?? "gpt-5.4-mini"),
       prompt,
       maxOutputTokens: 1200,
       providerOptions: config.aiSeed !== undefined ? { openai: { seed: config.aiSeed } } : undefined,

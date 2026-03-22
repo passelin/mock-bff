@@ -11,5 +11,6 @@
     "outDir": "dist",
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src", "tests"]
+  "include": ["src"],
+  "exclude": ["tests", "admin"]
 }

@@ -5,6 +5,7 @@ export interface AppConfig {
   openApiMode: OpenApiMode;
   aiEnabled: boolean;
   aiSeed?: number;
+  aiProvider?: "openai" | "none";
   aiModel?: string;
   ignoredQueryParams: string[];
   redactHeaders: string[];

@@ -7,6 +7,7 @@ const DEFAULT_CONFIG: AppConfig = {
   appName: "app",
   openApiMode: "assist",
   aiEnabled: true,
+  aiProvider: "openai",
   aiModel: "gpt-5.4-mini",
   ignoredQueryParams: ["_", "cacheBust", "timestamp"],
   redactHeaders: ["authorization", "cookie", "set-cookie", "x-api-key"],

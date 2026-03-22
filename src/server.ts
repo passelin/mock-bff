@@ -1,11 +1,26 @@
 import { createApp } from "./app.js";
 
-const port = Number(process.env.PORT || 8787);
-const appName = process.env.MOCK_APP_NAME || "local-app";
-const rootDir = process.env.MOCK_ROOT_DIR || process.cwd();
+export interface ServerStartOptions {
+  port?: number;
+  host?: string;
+  appName?: string;
+  rootDir?: string;
+}
 
-const app = await createApp({ rootDir, appName });
+export async function startServer(opts: ServerStartOptions = {}) {
+  const port = opts.port ?? Number(process.env.PORT || 8787);
+  const host = opts.host ?? process.env.HOST ?? "0.0.0.0";
+  const appName = opts.appName ?? process.env.MOCK_APP_NAME ?? "local-app";
+  const rootDir = opts.rootDir ?? process.env.MOCK_ROOT_DIR ?? process.cwd();
 
-await app.listen({ port, host: "0.0.0.0" });
-console.log(`BFF Mock Server listening at http://0.0.0.0:${port}
-    admin: http://0.0.0.0:${port}/admin`);
+  const app = await createApp({ rootDir, appName });
+  await app.listen({ port, host });
+
+  return { app, port, host };
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const { port, host } = await startServer();
+  console.log(`BFF Mock Server listening at http://${host}:${port}`);
+  console.log(`admin: http://${host}:${port}/-/admin`);
+}

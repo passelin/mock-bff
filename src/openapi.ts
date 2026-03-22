@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { load } from "js-yaml";
-import Ajv from "ajv";
+import AjvImport, { ErrorObject } from "ajv";
 
 export interface OpenApiValidationResult {
   ok: boolean;
@@ -14,7 +14,8 @@ interface OpenApiDoc {
   };
 }
 
-const ajv = new Ajv({ allErrors: true, strict: false });
+const AjvCtor: any = (AjvImport as any).default ?? (AjvImport as any);
+const ajv = new AjvCtor({ allErrors: true, strict: false });
 
 function getByPointer(root: unknown, pointer: string): unknown {
   const parts = pointer.replace(/^#\//, '').split('/').filter(Boolean).map((p) => p.replace(/~1/g, '/').replace(/~0/g, '~'));
@@ -105,6 +106,6 @@ export function validateResponseWithOpenApi(args: {
   const validate = ajv.compile(resolvedSchema as object);
   const ok = validate(args.responseBody);
   if (ok) return { ok: true, errors: [] };
-  const errors = (validate.errors ?? []).map((e) => `${e.instancePath || "$"} ${e.message ?? "invalid"}`);
+  const errors = (validate.errors ?? []).map((e: ErrorObject) => `${e.instancePath || "$"} ${e.message ?? "invalid"}`);
   return { ok: false, errors };
 }

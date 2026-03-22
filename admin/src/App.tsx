@@ -485,7 +485,11 @@ export function App() {
 
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
                 <div className="xl:col-span-4 space-y-3">
-                  <Card title="Endpoints" subtitle="Pick endpoint to load variants.">
+                  <Card
+                    title="Endpoints"
+                    subtitle="Pick endpoint to load variants."
+                    actions={<button onClick={clearAllEndpoints} disabled={busy || endpoints.length === 0} className="rounded-xl border border-rose-700 text-rose-300 px-3 py-2 text-xs hover:bg-rose-900/30 disabled:opacity-50">Delete all</button>}
+                  >
                     <input value={endpointSearch} onChange={(e) => setEndpointSearch(e.target.value)} placeholder="Search endpoints..." className="mb-3 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs" />
                     <div className="max-h-[28rem] overflow-auto space-y-2">
                       {filteredEndpoints.map((ep, i) => (
@@ -495,7 +499,7 @@ export function App() {
                               <div className="font-mono text-xs text-brand-300">{ep.method}</div>
                               <div className="font-mono text-xs break-all mt-1">{ep.path}</div>
                             </button>
-                            <button onClick={() => clearEndpoint(ep.method, ep.path)} className="rounded p-1.5 text-rose-300 hover:bg-rose-900/30 shrink-0" aria-label="Delete endpoint" title="Delete endpoint">
+                            <button onClick={() => clearEndpoint(ep.method, ep.path)} className="self-center rounded p-1.5 text-rose-300 hover:bg-rose-900/30 shrink-0" aria-label="Delete endpoint" title="Delete endpoint">
                               <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
@@ -522,7 +526,7 @@ export function App() {
                                 <div className="font-mono text-xs">{v.id}</div>
                                 <div className="text-xs text-zinc-400 mt-1">{v.source} · status {v.status}</div>
                               </button>
-                              <button onClick={() => deleteVariant(v.id)} className="rounded p-1.5 text-rose-300 hover:bg-rose-900/30 shrink-0" aria-label="Delete variant" title="Delete variant">
+                              <button onClick={() => deleteVariant(v.id)} className="self-center rounded p-1.5 text-rose-300 hover:bg-rose-900/30 shrink-0" aria-label="Delete variant" title="Delete variant">
                                 <Trash2 className="h-4 w-4" />
                               </button>
                             </div>

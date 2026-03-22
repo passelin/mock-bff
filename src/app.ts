@@ -72,6 +72,22 @@ async function collectSimilarExamples(args: {
   return out;
 }
 
+function summarizeBodyShape(body: unknown): string {
+  if (!body || typeof body !== 'object') return typeof body;
+  if (Array.isArray(body)) return `array(len=${body.length})`;
+  const keys = Object.keys(body as Record<string, unknown>).slice(0, 12);
+  return `object{${keys.join(', ')}}`;
+}
+
+function shouldWriteContextInsight(args: {
+  index: IndexEntry[];
+  method: string;
+  path: string;
+}): boolean {
+  const tpl = normalizePathTemplate(args.path);
+  return !args.index.some((e) => e.method === args.method && normalizePathTemplate(e.path) === tpl);
+}
+
 function upsertIndex(entries: IndexEntry[], method: string, apiPath: string, variantPath: string): IndexEntry[] {
   const existing = entries.find((e) => e.method === method && e.path === apiPath);
   if (!existing) {
@@ -453,8 +469,14 @@ export async function createApp(options: CreateAppOptions) {
 
     const savedPath = await storage.saveVariant(method, fullPath, variantName, generated);
     const index = await storage.readIndex();
+    const isNewFamily = shouldWriteContextInsight({ index, method, path: fullPath });
     await storage.writeIndex(upsertIndex(index, method, fullPath, savedPath));
-    await storage.appendContext(`- Learned ${method} ${fullPath} @ ${new Date().toISOString()} (${validation.ok ? "openapi-ok" : "openapi-warning"})`);
+
+    if (isNewFamily) {
+      await storage.appendContext(
+        `- Insight: new endpoint family detected for ${method} ${normalizePathTemplate(fullPath)}; sample ${fullPath}; response shape ${summarizeBodyShape(generated.response.body)}${validation.ok ? '' : ' (openapi warning)'} `,
+      );
+    }
 
     pushRequestLog({
       at: new Date().toISOString(),

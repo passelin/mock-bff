@@ -278,6 +278,27 @@ describe("mock bff", () => {
     await app.close();
   });
 
+  it("deletes individual variant via admin API", async () => {
+    const { app } = await makeApp();
+
+    const mock = {
+      requestSignature: { method: "GET", path: "/api/tmp/1", queryHash: "manual", bodyHash: "manual" },
+      requestSnapshot: { query: {}, body: {} },
+      response: { status: 200, headers: { "content-type": "application/json" }, body: { ok: true } },
+      meta: { source: "manual", createdAt: new Date().toISOString() },
+    };
+
+    await app.inject({ method: "PUT", url: "/-/api/variant", payload: { method: "GET", path: "/api/tmp/1", id: "v1", mock } });
+
+    const del = await app.inject({ method: "DELETE", url: "/-/api/variant?method=GET&path=/api/tmp/1&id=v1" });
+    expect(del.statusCode).toBe(200);
+
+    const one = await app.inject({ method: "GET", url: "/-/api/variant?method=GET&path=/api/tmp/1&id=v1" });
+    expect(one.statusCode).toBe(404);
+
+    await app.close();
+  });
+
   it("creates brand new endpoint/variant via admin variant API", async () => {
     const { app } = await makeApp();
 

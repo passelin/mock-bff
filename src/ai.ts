@@ -150,7 +150,7 @@ function synthesizeFallbackBody(input: AiGenerateInput, signature: string): unkn
   return { generated: true, endpoint: `${input.method} ${input.path}`, signature, note: 'Deterministic fallback' };
 }
 
-function fallbackResponse(input: AiGenerateInput, config: AppConfig): StoredMock {
+function fallbackResponse(input: AiGenerateInput, config: AppConfig, promptHint?: string): StoredMock {
   const seedPart = config.aiSeed ?? 0;
   const signature = shortHash(JSON.stringify({ ...input, seedPart }));
   const format = detectPreferredFormat(input);
@@ -178,7 +178,13 @@ function fallbackResponse(input: AiGenerateInput, config: AppConfig): StoredMock
       headers: { "content-type": contentType, "x-mock-source": "ai-fallback" },
       body: responseBody,
     },
-    meta: { source: "ai", createdAt: new Date().toISOString(), seed: config.aiSeed, notes: `fallback:${format}` },
+    meta: {
+      source: "ai",
+      createdAt: new Date().toISOString(),
+      seed: config.aiSeed,
+      notes: `fallback:${format}`,
+      ...(config.aiStorePrompt ? { prompt: promptHint ?? `Fallback synthesis for ${input.method} ${input.path}` } : {}),
+    },
   };
 }
 
@@ -198,10 +204,25 @@ function parseJsonObject(text: string): unknown {
 
 export async function generateMockResponse(input: AiGenerateInput, config: AppConfig): Promise<StoredMock> {
   const provider = process.env.MOCK_AI_PROVIDER ?? config.aiProvider ?? "openai";
-  if (provider === "none") return fallbackResponse(input, config);
+
+  const now = new Date();
+  const prompt = [
+    "You generate realistic mock API response bodies.",
+    "Return ONLY a valid JSON object (no markdown, no prose).",
+    `Current datetime (ISO): ${now.toISOString()}`,
+    `Current date (YYYY-MM-DD): ${now.toISOString().slice(0, 10)}`,
+    `Endpoint: ${input.method} ${input.path}`,
+    `Query: ${JSON.stringify(input.query)}`,
+    `Request body: ${JSON.stringify(input.body)}`,
+    `Request headers: ${JSON.stringify(input.requestHeaders ?? {})}`,
+    `Context (truncated): ${input.context.slice(-4000)}`,
+    `Similar request examples (replicate structure when relevant): ${JSON.stringify(input.nearbyExamples.slice(0, 6))}`,
+  ].join("\n\n");
+
+  if (provider === "none") return fallbackResponse(input, config, prompt);
 
   if (provider !== "openai") {
-    const fallback = fallbackResponse(input, config);
+    const fallback = fallbackResponse(input, config, prompt);
     return {
       ...fallback,
       meta: {
@@ -211,21 +232,9 @@ export async function generateMockResponse(input: AiGenerateInput, config: AppCo
     };
   }
 
-  if (!process.env.OPENAI_API_KEY) return fallbackResponse(input, config);
+  if (!process.env.OPENAI_API_KEY) return fallbackResponse(input, config, prompt);
 
   try {
-    const now = new Date();
-    const prompt = [
-      "You generate realistic mock API response bodies.",
-      "Return ONLY a valid JSON object (no markdown, no prose).",
-      `Current datetime (ISO): ${now.toISOString()}`,
-      `Current date (YYYY-MM-DD): ${now.toISOString().slice(0, 10)}`,
-      `Endpoint: ${input.method} ${input.path}`,
-      `Query: ${JSON.stringify(input.query)}`,
-      `Request body: ${JSON.stringify(input.body)}`,
-      `Context (truncated): ${input.context.slice(-4000)}`,
-      `Similar request examples (replicate structure when relevant): ${JSON.stringify(input.nearbyExamples.slice(0, 6))}`,
-    ].join("\n\n");
 
     const result = await generateText({
       model: openai(process.env.MOCK_AI_MODEL ?? config.aiModel ?? "gpt-5.4-mini"),
@@ -258,6 +267,6 @@ export async function generateMockResponse(input: AiGenerateInput, config: AppCo
       },
     };
   } catch {
-    return fallbackResponse(input, config);
+    return fallbackResponse(input, config, prompt);
   }
 }

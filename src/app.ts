@@ -232,6 +232,31 @@ export async function createApp(options: CreateAppOptions) {
     return { method, path: apiPath, id, mock };
   });
 
+  app.delete<{ Querystring: { method?: string; path?: string; id?: string } }>("/-/api/variant", async (req, reply) => {
+    const method = req.query.method?.toUpperCase();
+    const apiPath = req.query.path;
+    const id = req.query.id;
+    if (!method || !apiPath || !id) return reply.code(400).send({ error: "method, path, id are required" });
+
+    await storage.clearVariant(method, apiPath, id);
+
+    const remaining = await storage.listVariants(method, apiPath);
+    if (remaining.length === 0) {
+      await storage.clearEndpoint(method, apiPath);
+      const idx = await storage.readIndex();
+      await storage.writeIndex(idx.filter((e) => !(e.method === method && e.path === apiPath)));
+    } else {
+      const idx = await storage.readIndex();
+      const entry = idx.find((e) => e.method === method && e.path === apiPath);
+      if (entry) {
+        entry.variants = entry.variants.filter((p) => !p.endsWith(`/${id}.json`));
+        await storage.writeIndex(idx);
+      }
+    }
+
+    return { deleted: true };
+  });
+
   app.put<{ Body: { method?: string; path?: string; id?: string; mock?: StoredMock } }>("/-/api/variant", async (req, reply) => {
     const method = req.body.method?.toUpperCase();
     const apiPath = req.body.path;

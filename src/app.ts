@@ -13,6 +13,23 @@ import { normalizePath, normalizeQuery } from "./utils.js";
 import { loadOpenApiFile, validateResponseWithOpenApi } from "./openapi.js";
 import type { IndexEntry, StoredMock } from "./types.js";
 
+const DROPPED_REPLAY_HEADERS = [
+  "content-encoding",
+  "content-length",
+  "transfer-encoding",
+  "connection",
+] as const;
+
+function sanitizeReplayHeaders(headers: Record<string, string>): Record<string, string> {
+  const dropped = new Set(DROPPED_REPLAY_HEADERS);
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(headers)) {
+    if (dropped.has(k.toLowerCase() as (typeof DROPPED_REPLAY_HEADERS)[number])) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
 export interface CreateAppOptions {
   rootDir: string;
   appName: string;
@@ -278,7 +295,7 @@ export async function createApp(options: CreateAppOptions) {
       return reply
         .header("x-mock-match", match.type)
         .code(match.mock.response.status)
-        .headers(match.mock.response.headers)
+        .headers(sanitizeReplayHeaders(match.mock.response.headers))
         .send(match.mock.response.body);
     }
 
@@ -347,7 +364,7 @@ export async function createApp(options: CreateAppOptions) {
     return reply
       .header("x-mock-match", "generated")
       .code(generated.response.status)
-      .headers(generated.response.headers)
+      .headers(sanitizeReplayHeaders(generated.response.headers))
       .send(generated.response.body);
     },
   });

@@ -35,6 +35,43 @@ export interface CreateAppOptions {
   appName: string;
 }
 
+function normalizePathTemplate(apiPath: string): string {
+  const parts = normalizePath(apiPath)
+    .split('/')
+    .filter(Boolean)
+    .map((seg) => (/^[0-9a-f-]{6,}$/i.test(seg) || /^\d+$/.test(seg) ? ':id' : seg.toLowerCase()));
+  return '/' + parts.join('/');
+}
+
+async function collectSimilarExamples(args: {
+  storage: MockStorage;
+  method: string;
+  path: string;
+  limit?: number;
+}): Promise<Array<{ method: string; path: string; responseBody: unknown; label: string }>> {
+  const index = await args.storage.readIndex();
+  const tpl = normalizePathTemplate(args.path);
+  const candidates = index
+    .filter((e) => e.method === args.method && normalizePathTemplate(e.path) === tpl)
+    .slice(0, args.limit ?? 5);
+
+  const out: Array<{ method: string; path: string; responseBody: unknown; label: string }> = [];
+  for (const c of candidates) {
+    const files = await args.storage.listVariants(c.method, c.path);
+    if (files.length === 0) continue;
+    const first = await args.storage.readMock(files[0]);
+    if (!first) continue;
+    out.push({
+      method: c.method,
+      path: c.path,
+      responseBody: first.response.body,
+      label: `similar-request:${c.method} ${c.path}`,
+    });
+  }
+
+  return out;
+}
+
 function upsertIndex(entries: IndexEntry[], method: string, apiPath: string, variantPath: string): IndexEntry[] {
   const existing = entries.find((e) => e.method === method && e.path === apiPath);
   if (!existing) {
@@ -341,6 +378,13 @@ export async function createApp(options: CreateAppOptions) {
     }
 
     const context = await readFile(path.join(storage.metaDir(), "context.md"), "utf8");
+    const similarExamples = await collectSimilarExamples({
+      storage,
+      method,
+      path: fullPath,
+      limit: 5,
+    });
+
     const generated = await generateMockResponse({
       method,
       path: fullPath,
@@ -348,7 +392,10 @@ export async function createApp(options: CreateAppOptions) {
       body,
       requestHeaders: req.headers as Record<string, string | string[] | undefined>,
       context,
-      nearbyExamples: variants.slice(0, 5).map((v) => ({ method, path: fullPath, responseBody: v.response.body })),
+      nearbyExamples: [
+        ...variants.slice(0, 5).map((v) => ({ method, path: fullPath, responseBody: v.response.body, label: `same-endpoint:${method} ${fullPath}` })),
+        ...similarExamples,
+      ],
     }, config);
 
     const openapiFileJson = path.join(storage.metaDir(), "openapi.json");

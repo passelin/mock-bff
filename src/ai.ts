@@ -10,7 +10,7 @@ export interface AiGenerateInput {
   body: unknown;
   requestHeaders?: Record<string, string | string[] | undefined>;
   context: string;
-  nearbyExamples: Array<{ method: string; path: string; responseBody: unknown }>;
+  nearbyExamples: Array<{ method: string; path: string; responseBody: unknown; label?: string }>;
 }
 
 function singularize(word: string): string {
@@ -224,7 +224,7 @@ export async function generateMockResponse(input: AiGenerateInput, config: AppCo
       `Query: ${JSON.stringify(input.query)}`,
       `Request body: ${JSON.stringify(input.body)}`,
       `Context (truncated): ${input.context.slice(-4000)}`,
-      `Nearby examples: ${JSON.stringify(input.nearbyExamples.slice(0, 4))}`,
+      `Similar request examples (replicate structure when relevant): ${JSON.stringify(input.nearbyExamples.slice(0, 6))}`,
     ].join("\n\n");
 
     const result = await generateText({

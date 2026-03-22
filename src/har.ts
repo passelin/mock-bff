@@ -60,27 +60,44 @@ function maybeJson(text?: string): unknown {
   }
 }
 
-function shouldKeepEntry(entry: HarEntry, config: AppConfig): boolean {
-  const method = entry.request.method.toUpperCase();
-  const url = entry._urlObj ?? new URL(entry.request.url);
-  const pathname = normalizePath(url.pathname).toLowerCase();
-  const mime = (entry.response.content?.mimeType ?? '').toLowerCase();
+export function isApiLikeRequest(args: {
+  method: string;
+  pathname: string;
+  config: AppConfig;
+  responseMimeType?: string;
+  requireJsonResponse?: boolean;
+}): boolean {
+  const method = args.method.toUpperCase();
+  const pathname = normalizePath(args.pathname).toLowerCase();
+  const mime = (args.responseMimeType ?? '').toLowerCase();
+  const requireJson = args.requireJsonResponse ?? args.config.har.requireJsonResponse;
 
-  if (!config.har.onlyApiCalls) return true;
+  if (!args.config.har.onlyApiCalls) return true;
 
   if (!["GET", "POST", "PUT", "PATCH", "DELETE"].includes(method)) return false;
 
-  if (config.har.excludeExtensions.some((ext) => pathname.endsWith(ext.toLowerCase()))) return false;
+  if (args.config.har.excludeExtensions.some((ext) => pathname.endsWith(ext.toLowerCase()))) return false;
 
-  if (config.har.pathAllowlist.length > 0 && !config.har.pathAllowlist.some((p) => pathname.includes(p.toLowerCase()))) {
+  if (args.config.har.pathAllowlist.length > 0 && !args.config.har.pathAllowlist.some((p) => pathname.includes(p.toLowerCase()))) {
     return false;
   }
 
-  if (config.har.pathDenylist.some((p) => pathname.includes(p.toLowerCase()))) return false;
+  if (args.config.har.pathDenylist.some((p) => pathname.includes(p.toLowerCase()))) return false;
 
-  if (config.har.requireJsonResponse && !mime.includes("application/json")) return false;
+  if (requireJson && !mime.includes("application/json")) return false;
 
   return true;
+}
+
+function shouldKeepEntry(entry: HarEntry, config: AppConfig): boolean {
+  const url = entry._urlObj ?? new URL(entry.request.url);
+  return isApiLikeRequest({
+    method: entry.request.method,
+    pathname: url.pathname,
+    config,
+    responseMimeType: entry.response.content?.mimeType,
+    requireJsonResponse: config.har.requireJsonResponse,
+  });
 }
 
 export function parseHar(

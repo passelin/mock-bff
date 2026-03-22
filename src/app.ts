@@ -6,7 +6,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { MockStorage } from "./storage.js";
-import { parseHar } from "./har.js";
+import { isApiLikeRequest, parseHar } from "./har.js";
 import { buildVariantName, matchMock } from "./matcher.js";
 import { generateMockResponse } from "./ai.js";
 import { normalizePath, normalizeQuery } from "./utils.js";
@@ -287,6 +287,18 @@ export async function createApp(options: CreateAppOptions) {
       return reply.code(404).send({ error: "Not found" });
     }
     const config = await storage.readConfig();
+
+    if (!isApiLikeRequest({ method, pathname: fullPath, config, requireJsonResponse: false })) {
+      pushRequestLog({
+        at: new Date().toISOString(),
+        method,
+        path: fullPath,
+        query: (req.query as Record<string, string | string[]>) ?? {},
+        match: "none",
+        status: 404,
+      });
+      return reply.code(404).send({ error: "Non-API request is not mocked" });
+    }
 
     const query = normalizeQuery((req.query as Record<string, string | string[]>) ?? {}, config.ignoredQueryParams);
     const body = req.body;

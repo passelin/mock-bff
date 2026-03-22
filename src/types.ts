@@ -5,7 +5,7 @@ export interface AppConfig {
   openApiMode: OpenApiMode;
   aiEnabled: boolean;
   aiSeed?: number;
-  aiProvider?: "openai" | "none";
+  aiProvider?: "openai" | "anthropic" | "ollama" | "none";
   aiModel?: string;
   aiStorePrompt?: boolean;
   ignoredQueryParams: string[];

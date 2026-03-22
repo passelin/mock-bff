@@ -62,7 +62,24 @@ mock-bff --provider none
 
 ```bash
 export OPENAI_API_KEY=your_key
-mock-bff --provider openai
+mock-bff --provider openai --model gpt-5.4-mini
+```
+
+### Anthropic
+
+```bash
+export ANTHROPIC_API_KEY=your_key
+mock-bff --provider anthropic --model claude-3-5-sonnet-latest
+```
+
+### Ollama (local)
+
+```bash
+# default base URL is http://127.0.0.1:11434/v1
+mock-bff --provider ollama --model llama3.1:8b
+
+# custom Ollama URL
+mock-bff --provider ollama --model llama3.1:8b --ollama-base-url http://localhost:11434/v1
 ```
 
 ### Disable AI generation

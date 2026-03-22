@@ -249,7 +249,13 @@ export async function generateMockResponse(input: AiGenerateInput, config: AppCo
         headers: { "content-type": "application/json", "x-mock-source": "ai" },
         body,
       },
-      meta: { source: "ai", createdAt: new Date().toISOString(), seed: config.aiSeed, notes: "vercel-ai-sdk" },
+      meta: {
+        source: "ai",
+        createdAt: new Date().toISOString(),
+        seed: config.aiSeed,
+        notes: "vercel-ai-sdk",
+        ...(config.aiStorePrompt ? { prompt } : {}),
+      },
     };
   } catch {
     return fallbackResponse(input, config);

@@ -96,6 +96,7 @@ export async function createApp(options: CreateAppOptions) {
     query: Record<string, string | string[]>;
     match: "exact" | "fuzzy" | "default" | "generated" | "generated-invalid" | "none";
     status: number;
+    prompt?: string;
   }> = [];
 
   const pushRequestLog = (entry: {
@@ -105,6 +106,7 @@ export async function createApp(options: CreateAppOptions) {
     query: Record<string, string | string[]>;
     match: "exact" | "fuzzy" | "default" | "generated" | "generated-invalid" | "none";
     status: number;
+    prompt?: string;
   }) => {
     requestLogs.push(entry);
     if (requestLogs.length > maxRequestLogs) {
@@ -320,7 +322,7 @@ export async function createApp(options: CreateAppOptions) {
     const method = req.method.toUpperCase();
     const fullPath = normalizePath(req.url.split("?")[0] || "/");
 
-    if (fullPath.startsWith("/-/")) {
+    if (fullPath.startsWith("/-/") || fullPath.startsWith("/admin/")) {
       return reply.code(404).send({ error: "Not found" });
     }
     const config = await storage.readConfig();
@@ -355,6 +357,7 @@ export async function createApp(options: CreateAppOptions) {
         query,
         match: match.type,
         status: match.mock.response.status,
+        prompt: match.mock.meta.prompt,
       });
 
       return reply
@@ -435,6 +438,7 @@ export async function createApp(options: CreateAppOptions) {
       query,
       match: "generated",
       status: generated.response.status,
+      prompt: generated.meta.prompt,
     });
 
     return reply

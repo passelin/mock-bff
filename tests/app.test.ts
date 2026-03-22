@@ -230,6 +230,20 @@ describe("mock bff", () => {
     await app.close();
   });
 
+  it("ignores legacy /admin/* paths and does not add misses", async () => {
+    const { app } = await makeApp();
+
+    const res = await app.inject({ method: "GET", url: "/admin/requests" });
+    expect(res.statusCode).toBe(404);
+
+    const misses = await app.inject({ method: "GET", url: "/-/api/misses" });
+    expect(misses.statusCode).toBe(200);
+    expect(Array.isArray(misses.json())).toBe(true);
+    expect(misses.json().length).toBe(0);
+
+    await app.close();
+  });
+
   it("fallback generation infers meaningful entity for id-based GET", async () => {
     const { app } = await makeApp();
 

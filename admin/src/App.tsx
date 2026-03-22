@@ -3,6 +3,7 @@ import {
   Check,
   Clipboard,
   ClipboardCheck,
+  Eye,
   FileUp,
   Gauge,
   ListTree,
@@ -89,6 +90,7 @@ export function App() {
   const [copied, setCopied] = useState('');
   const [toast, setToast] = useState('');
   const [busy, setBusy] = useState(false);
+  const [promptDialog, setPromptDialog] = useState<string | null>(null);
 
   const [harFile, setHarFile] = useState<File | null>(null);
   const [openApiFile, setOpenApiFile] = useState<File | null>(null);
@@ -308,6 +310,23 @@ export function App() {
     }
   }
 
+  function setAiStorePrompt(enabled: boolean) {
+    try {
+      const parsed = JSON.parse(configText || '{}');
+      parsed.aiStorePrompt = enabled;
+      setConfigText(JSON.stringify(parsed, null, 2));
+    } catch {}
+  }
+
+  function getAiStorePrompt(): boolean {
+    try {
+      const parsed = JSON.parse(configText || '{}');
+      return Boolean(parsed.aiStorePrompt);
+    } catch {
+      return false;
+    }
+  }
+
   async function saveContext() {
     setBusy(true);
     try {
@@ -502,7 +521,41 @@ export function App() {
                 {requests.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-zinc-700 p-6 text-sm text-zinc-400">No requests yet. Hit your endpoints to populate this feed.</div>
                 ) : (
-                  <pre className="max-h-[34rem] overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs">{JSON.stringify(requests, null, 2)}</pre>
+                  <div className="max-h-[34rem] overflow-auto rounded-xl border border-zinc-800">
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0 bg-zinc-900 text-zinc-300 border-b border-zinc-800">
+                        <tr>
+                          <th className="px-3 py-2 text-left">Time</th>
+                          <th className="px-3 py-2 text-left">Method</th>
+                          <th className="px-3 py-2 text-left">Path</th>
+                          <th className="px-3 py-2 text-left">Match</th>
+                          <th className="px-3 py-2 text-left">Status</th>
+                          <th className="px-3 py-2 text-left">Prompt</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {requests.map((r: any, i: number) => (
+                          <tr key={`${r.at}-${i}`} className="border-b border-zinc-800/70 hover:bg-zinc-800/20">
+                            <td className="px-3 py-2 whitespace-nowrap text-zinc-400">{new Date(r.at).toLocaleTimeString()}</td>
+                            <td className="px-3 py-2 font-mono text-brand-300">{r.method}</td>
+                            <td className="px-3 py-2 font-mono break-all">{r.path}</td>
+                            <td className="px-3 py-2">{r.match}</td>
+                            <td className="px-3 py-2">{r.status}</td>
+                            <td className="px-3 py-2">
+                              {r.prompt ? (
+                                <button onClick={() => setPromptDialog(r.prompt)} className="rounded border border-zinc-700 px-2 py-1 hover:bg-zinc-800 inline-flex items-center gap-1">
+                                  <Eye className="h-3.5 w-3.5" />
+                                  View
+                                </button>
+                              ) : (
+                                <span className="text-zinc-500">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </Card>
               <Card title="Misses" subtitle="Unmatched requests captured during runtime." actions={<button onClick={loadMisses} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs">Refresh</button>}>
@@ -521,6 +574,10 @@ export function App() {
           element={
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               <Card title="Runtime Config" subtitle="Live config editor (AI mode, seeds, redaction, openapi mode)." actions={<button onClick={saveConfig} disabled={busy || !!configError} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Save config</button>}>
+                <label className="mb-3 inline-flex items-center gap-2 text-xs text-zinc-300">
+                  <input type="checkbox" checked={getAiStorePrompt()} onChange={(e) => setAiStorePrompt(e.target.checked)} />
+                  Store AI generation prompt with saved generated variants (off by default)
+                </label>
                 <textarea value={configText} onChange={(e) => setConfigText(e.target.value)} className="h-80 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />
                 {configError ? <p className="mt-2 text-xs text-rose-400">{configError}</p> : <p className="mt-2 text-xs text-emerald-400">JSON valid</p>}
               </Card>
@@ -531,6 +588,18 @@ export function App() {
           }
         />
       </Routes>
+
+      {promptDialog ? (
+        <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-4xl rounded-2xl border border-zinc-700 bg-zinc-900 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Stored AI Prompt</h3>
+              <button onClick={() => setPromptDialog(null)} className="rounded border border-zinc-700 px-2 py-1 text-xs">Close</button>
+            </div>
+            <pre className="max-h-[70vh] overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs whitespace-pre-wrap">{promptDialog}</pre>
+          </div>
+        </div>
+      ) : null}
 
       {toast ? <div className="fixed bottom-6 right-6 rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2 text-sm shadow-lg">{toast}</div> : null}
     </main>

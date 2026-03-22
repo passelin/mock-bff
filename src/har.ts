@@ -29,6 +29,16 @@ const DROPPED_INGEST_HEADERS = new Set([
   "content-length",
   "transfer-encoding",
   "connection",
+  // let Fastify CORS plugin own these at runtime
+  "access-control-allow-origin",
+  "access-control-allow-methods",
+  "access-control-allow-headers",
+  "access-control-allow-credentials",
+  "access-control-expose-headers",
+  "access-control-max-age",
+  "access-control-request-method",
+  "access-control-request-headers",
+  "vary",
 ]);
 
 function toHeaderMap(headers: Array<{ name: string; value: string }> = []): Record<string, string> {

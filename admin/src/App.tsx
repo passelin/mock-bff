@@ -276,6 +276,11 @@ export function App() {
 
   async function deleteVariant(id: string) {
     if (!selectedMethod || !selectedPath) return;
+    if (variantList.length <= 1) {
+      showToast('Cannot delete the last variant. Delete the endpoint instead.');
+      return;
+    }
+
     const ok = window.confirm(`Delete variant ${id} for ${selectedMethod} ${selectedPath}?`);
     if (!ok) return;
 
@@ -284,7 +289,10 @@ export function App() {
       const res = await fetch(`/-/api/variant?method=${encodeURIComponent(selectedMethod)}&path=${encodeURIComponent(selectedPath)}&id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
       });
-      if (!res.ok) throw new Error('delete failed');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || 'delete failed');
+      }
 
       if (selectedVariantId === id) {
         setSelectedVariantId('');
@@ -293,8 +301,8 @@ export function App() {
       await loadEndpoints();
       await loadVariants(selectedMethod, selectedPath);
       showToast('Variant deleted');
-    } catch {
-      showToast('Failed to delete variant');
+    } catch (e: any) {
+      showToast(e?.message || 'Failed to delete variant');
     } finally {
       setBusy(false);
     }
@@ -597,7 +605,13 @@ export function App() {
                                 <div className="font-mono text-xs">{v.id}</div>
                                 <div className="text-xs text-zinc-400 mt-1">{v.source} · status {v.status}</div>
                               </button>
-                              <button onClick={() => deleteVariant(v.id)} className="self-center rounded p-1.5 text-rose-300 hover:bg-rose-900/30 shrink-0" aria-label="Delete variant" title="Delete variant">
+                              <button
+                                onClick={() => deleteVariant(v.id)}
+                                disabled={variantList.length <= 1}
+                                className="self-center rounded p-1.5 text-rose-300 hover:bg-rose-900/30 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                                aria-label="Delete variant"
+                                title={variantList.length <= 1 ? 'Delete endpoint to remove the last variant' : 'Delete variant'}
+                              >
                                 <Trash2 className="h-4 w-4" />
                               </button>
                             </div>

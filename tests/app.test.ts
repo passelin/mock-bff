@@ -278,7 +278,7 @@ describe("mock bff", () => {
     await app.close();
   });
 
-  it("deletes individual variant via admin API", async () => {
+  it("disallows deleting the last variant and allows deleting when multiple exist", async () => {
     const { app } = await makeApp();
 
     const mock = {
@@ -290,6 +290,10 @@ describe("mock bff", () => {
 
     await app.inject({ method: "PUT", url: "/-/api/variant", payload: { method: "GET", path: "/api/tmp/1", id: "v1", mock } });
 
+    const blocked = await app.inject({ method: "DELETE", url: "/-/api/variant?method=GET&path=/api/tmp/1&id=v1" });
+    expect(blocked.statusCode).toBe(400);
+
+    await app.inject({ method: "PUT", url: "/-/api/variant", payload: { method: "GET", path: "/api/tmp/1", id: "v2", mock } });
     const del = await app.inject({ method: "DELETE", url: "/-/api/variant?method=GET&path=/api/tmp/1&id=v1" });
     expect(del.statusCode).toBe(200);
 

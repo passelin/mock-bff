@@ -153,6 +153,11 @@ export function App() {
     setContext(d.context || '');
   }
 
+  function ellipsize(text: string, max = 72): string {
+    if (text.length <= max) return text;
+    return `${text.slice(0, max - 1)}…`;
+  }
+
   async function uploadFile(route: string, file: File | null, successMsg: string) {
     if (!file) return;
     setBusy(true);
@@ -575,7 +580,14 @@ export function App() {
                     <span className="text-xs text-zinc-500">{editorSplit}% / {100 - editorSplit}%</span>
                   </div>
                   <div className="grid gap-6" style={{ gridTemplateColumns: `minmax(0, ${editorSplit}fr) minmax(0, ${100 - editorSplit}fr)` }}>
-                    <Card title={`Variants ${selectedMethod} ${selectedPath}`} subtitle="Pick a variant to inspect/edit.">
+                    <Card
+                      title="Variants"
+                      subtitle={
+                        selectedMethod && selectedPath
+                          ? `Endpoint: ${ellipsize(`${selectedMethod} ${selectedPath}`, 80)}`
+                          : 'Select an endpoint from the left list first.'
+                      }
+                    >
                       <div className="space-y-2 max-h-80 overflow-auto">
                         {!selectedMethod || !selectedPath ? <p className="text-sm text-zinc-400">Select an endpoint from the left list first.</p> : null}
                         {variantList.map((v) => (

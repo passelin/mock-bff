@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Eye, FileUp, Gauge, ListTree, Logs, Menu, Route as RouteIcon, Settings, Sparkles, Upload, X } from 'lucide-react';
+import { Eye, FileUp, Gauge, ListTree, Logs, Menu, Route as RouteIcon, Settings, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { NavLink, Route, Routes } from 'react-router-dom';
 
 type Endpoint = { method: string; path: string; variants: number; hasDefault: boolean };
@@ -494,8 +494,10 @@ export function App() {
                             <div className="font-mono text-xs text-brand-300">{ep.method}</div>
                             <div className="font-mono text-xs break-all mt-1">{ep.path}</div>
                           </button>
-                          <div className="mt-2">
-                            <button onClick={() => clearEndpoint(ep.method, ep.path)} className="rounded border border-rose-700 text-rose-300 px-2 py-1 text-[11px] hover:bg-rose-900/30">Delete endpoint</button>
+                          <div className="mt-2 flex justify-end">
+                            <button onClick={() => clearEndpoint(ep.method, ep.path)} className="rounded p-1.5 text-rose-300 hover:bg-rose-900/30" aria-label="Delete endpoint" title="Delete endpoint">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -518,8 +520,10 @@ export function App() {
                               <div className="font-mono text-xs">{v.id}</div>
                               <div className="text-xs text-zinc-400 mt-1">{v.source} · status {v.status}</div>
                             </button>
-                            <div className="mt-2">
-                              <button onClick={() => deleteVariant(v.id)} className="rounded border border-rose-700 text-rose-300 px-2 py-1 text-[11px] hover:bg-rose-900/30">Delete variant</button>
+                            <div className="mt-2 flex justify-end">
+                              <button onClick={() => deleteVariant(v.id)} className="rounded p-1.5 text-rose-300 hover:bg-rose-900/30" aria-label="Delete variant" title="Delete variant">
+                                <Trash2 className="h-4 w-4" />
+                              </button>
                             </div>
                           </div>
                         ))}

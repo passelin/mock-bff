@@ -20,7 +20,8 @@
     "start": "node dist/server.js",
     "start:cli": "node dist/cli.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "pack:check": "npm pack --dry-run"
   },
   "keywords": [
     "mock",
@@ -31,6 +32,9 @@
   ],
   "author": "",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.47",
     "@fastify/cors": "^10.0.1",

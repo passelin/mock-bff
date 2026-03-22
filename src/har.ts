@@ -24,9 +24,20 @@ interface HarEntry {
   _urlObj?: URL;
 }
 
+const DROPPED_INGEST_HEADERS = new Set([
+  "content-encoding",
+  "content-length",
+  "transfer-encoding",
+  "connection",
+]);
+
 function toHeaderMap(headers: Array<{ name: string; value: string }> = []): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const h of headers) out[h.name.toLowerCase()] = h.value;
+  for (const h of headers) {
+    const key = h.name.toLowerCase();
+    if (DROPPED_INGEST_HEADERS.has(key)) continue;
+    out[key] = h.value;
+  }
   return out;
 }
 

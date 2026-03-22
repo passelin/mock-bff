@@ -1,6 +1,6 @@
 import { generateText } from "ai";
-import { openai } from "@ai-sdk/openai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { openai, createOpenAI } from "@ai-sdk/openai";
+import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { AppConfig, StoredMock } from "./types.js";
 import { shortHash } from "./utils.js";
@@ -205,8 +205,24 @@ function parseJsonObject(text: string): unknown {
 }
 
 function selectModel(provider: string, model: string) {
-  if (provider === "openai") return openai(model);
-  if (provider === "anthropic") return anthropic(model);
+  if (provider === "openai") {
+    const baseURL = process.env.OPENAI_BASE_URL;
+    if (baseURL) {
+      const customOpenAI = createOpenAI({ baseURL });
+      return customOpenAI(model);
+    }
+    return openai(model);
+  }
+
+  if (provider === "anthropic") {
+    const baseURL = process.env.ANTHROPIC_BASE_URL;
+    if (baseURL) {
+      const customAnthropic = createAnthropic({ baseURL });
+      return customAnthropic(model);
+    }
+    return anthropic(model);
+  }
+
   if (provider === "ollama") {
     const baseURL = process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434/v1";
     const ollama = createOpenAICompatible({
@@ -215,6 +231,7 @@ function selectModel(provider: string, model: string) {
     });
     return ollama(model);
   }
+
   return openai(model);
 }
 

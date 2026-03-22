@@ -490,12 +490,12 @@ export function App() {
                     <div className="max-h-[28rem] overflow-auto space-y-2">
                       {filteredEndpoints.map((ep, i) => (
                         <div key={ep.method + ep.path + i} className={`w-full rounded-lg border px-3 py-2 ${selectedMethod===ep.method && selectedPath===ep.path ? 'border-brand-500 bg-brand-500/10' : 'border-zinc-700 hover:bg-zinc-800'}`}>
-                          <button onClick={() => loadVariants(ep.method, ep.path)} className="w-full text-left">
-                            <div className="font-mono text-xs text-brand-300">{ep.method}</div>
-                            <div className="font-mono text-xs break-all mt-1">{ep.path}</div>
-                          </button>
-                          <div className="mt-2 flex justify-end">
-                            <button onClick={() => clearEndpoint(ep.method, ep.path)} className="rounded p-1.5 text-rose-300 hover:bg-rose-900/30" aria-label="Delete endpoint" title="Delete endpoint">
+                          <div className="flex items-start justify-between gap-2">
+                            <button onClick={() => loadVariants(ep.method, ep.path)} className="flex-1 text-left">
+                              <div className="font-mono text-xs text-brand-300">{ep.method}</div>
+                              <div className="font-mono text-xs break-all mt-1">{ep.path}</div>
+                            </button>
+                            <button onClick={() => clearEndpoint(ep.method, ep.path)} className="rounded p-1.5 text-rose-300 hover:bg-rose-900/30 shrink-0" aria-label="Delete endpoint" title="Delete endpoint">
                               <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
@@ -514,20 +514,21 @@ export function App() {
                   <div className="grid gap-6" style={{ gridTemplateColumns: `minmax(0, ${editorSplit}fr) minmax(0, ${100 - editorSplit}fr)` }}>
                     <Card title={`Variants ${selectedMethod} ${selectedPath}`} subtitle="Pick a variant to inspect/edit.">
                       <div className="space-y-2 max-h-80 overflow-auto">
+                        {!selectedMethod || !selectedPath ? <p className="text-sm text-zinc-400">Select an endpoint from the left list first.</p> : null}
                         {variantList.map((v) => (
                           <div key={v.id} className={`w-full rounded-lg border px-3 py-2 transition ${selectedVariantId === v.id ? 'border-brand-500 bg-brand-500/10' : 'border-zinc-700 hover:bg-zinc-800'}`}>
-                            <button onClick={() => selectVariant(v.id)} className="w-full text-left">
-                              <div className="font-mono text-xs">{v.id}</div>
-                              <div className="text-xs text-zinc-400 mt-1">{v.source} · status {v.status}</div>
-                            </button>
-                            <div className="mt-2 flex justify-end">
-                              <button onClick={() => deleteVariant(v.id)} className="rounded p-1.5 text-rose-300 hover:bg-rose-900/30" aria-label="Delete variant" title="Delete variant">
+                            <div className="flex items-start justify-between gap-2">
+                              <button onClick={() => selectVariant(v.id)} className="flex-1 text-left">
+                                <div className="font-mono text-xs">{v.id}</div>
+                                <div className="text-xs text-zinc-400 mt-1">{v.source} · status {v.status}</div>
+                              </button>
+                              <button onClick={() => deleteVariant(v.id)} className="rounded p-1.5 text-rose-300 hover:bg-rose-900/30 shrink-0" aria-label="Delete variant" title="Delete variant">
                                 <Trash2 className="h-4 w-4" />
                               </button>
                             </div>
                           </div>
                         ))}
-                        {variantList.length === 0 ? <p className="text-sm text-zinc-400">No variants loaded.</p> : null}
+                        {selectedMethod && selectedPath && variantList.length === 0 ? <p className="text-sm text-zinc-400">No variants loaded.</p> : null}
                       </div>
                     </Card>
 

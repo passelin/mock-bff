@@ -200,7 +200,7 @@ export async function createApp(options: CreateAppOptions) {
     const mock = req.body.mock;
     if (!method || !apiPath || !id || !mock) return reply.code(400).send({ error: "method, path, id, mock are required" });
 
-    await storage.saveVariant(method, apiPath, id, {
+    const savedPath = await storage.saveVariant(method, apiPath, id, {
       ...mock,
       meta: {
         ...mock.meta,
@@ -208,6 +208,22 @@ export async function createApp(options: CreateAppOptions) {
         createdAt: new Date().toISOString(),
       },
     });
+
+    const index = await storage.readIndex();
+    await storage.writeIndex(upsertIndex(index, method, apiPath, savedPath));
+
+    const defaultPath = storage.defaultPath(method, apiPath);
+    const existingDefault = await storage.readMock(defaultPath);
+    if (!existingDefault) {
+      await storage.saveDefault(method, apiPath, {
+        ...mock,
+        meta: {
+          ...mock.meta,
+          source: "manual",
+          createdAt: new Date().toISOString(),
+        },
+      });
+    }
 
     return { saved: true };
   });

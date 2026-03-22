@@ -65,6 +65,12 @@ export function App() {
   const [selectedVariantId, setSelectedVariantId] = useState('');
   const [variantEditor, setVariantEditor] = useState('');
 
+  const [createMethod, setCreateMethod] = useState('GET');
+  const [createPath, setCreatePath] = useState('');
+  const [createVariantId, setCreateVariantId] = useState('default_manual');
+  const [createStatus, setCreateStatus] = useState(200);
+  const [createBody, setCreateBody] = useState('{\n  "ok": true\n}');
+
   const [copied, setCopied] = useState('');
   const [toast, setToast] = useState('');
   const [busy, setBusy] = useState(false);
@@ -237,9 +243,59 @@ export function App() {
         body: JSON.stringify({ method: selectedMethod, path: selectedPath, id: selectedVariantId, mock }),
       });
       await loadVariants(selectedMethod, selectedPath);
+      await loadEndpoints();
       showToast('Variant saved');
     } catch {
       showToast('Variant save failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createVariant() {
+    setBusy(true);
+    try {
+      const body = JSON.parse(createBody);
+      const method = createMethod.toUpperCase();
+      const path = createPath.startsWith('/') ? createPath : `/${createPath}`;
+      const id = createVariantId.trim() || 'default_manual';
+
+      const mock = {
+        requestSignature: {
+          method,
+          path,
+          queryHash: 'manual',
+          bodyHash: 'manual',
+        },
+        requestSnapshot: {
+          query: {},
+          body: {},
+        },
+        response: {
+          status: Number(createStatus) || 200,
+          headers: { 'content-type': 'application/json' },
+          body,
+        },
+        meta: {
+          source: 'manual',
+          createdAt: new Date().toISOString(),
+          notes: 'created-from-admin-ui',
+        },
+      };
+
+      const res = await fetch('/-/api/variant', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ method, path, id, mock }),
+      });
+      if (!res.ok) throw new Error('create failed');
+
+      await loadEndpoints();
+      await loadVariants(method, path);
+      setSelectedVariantId(id);
+      showToast('Endpoint/variant created');
+    } catch {
+      showToast('Create failed (check JSON/path)');
     } finally {
       setBusy(false);
     }
@@ -399,6 +455,22 @@ export function App() {
           path="/variants"
           element={
             <>
+              <Card
+                title="Create endpoint / variant"
+                subtitle="Manually add new endpoints and variants directly from the UI."
+                actions={<button onClick={createVariant} disabled={busy || !createPath.trim()} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Create</button>}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
+                  <select value={createMethod} onChange={(e) => setCreateMethod(e.target.value)} className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm">
+                    <option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
+                  </select>
+                  <input value={createPath} onChange={(e) => setCreatePath(e.target.value)} placeholder="/api/new-endpoint" className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm" />
+                  <input value={createVariantId} onChange={(e) => setCreateVariantId(e.target.value)} placeholder="variant id" className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm" />
+                  <input type="number" value={createStatus} onChange={(e) => setCreateStatus(Number(e.target.value))} placeholder="status" className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm" />
+                </div>
+                <textarea value={createBody} onChange={(e) => setCreateBody(e.target.value)} className="h-40 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />
+              </Card>
+
               <Card title="Endpoint Variant Review" subtitle="Select an endpoint then inspect or edit individual variants.">
                 <div className="overflow-y-auto overflow-x-hidden max-h-[26rem] rounded-xl border border-zinc-800">
                   <table className="w-full table-fixed text-sm">

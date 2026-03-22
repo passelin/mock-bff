@@ -32,6 +32,14 @@
   ],
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/passelin/mock-bff.git"
+  },
+  "homepage": "https://github.com/passelin/mock-bff#readme",
+  "bugs": {
+    "url": "https://github.com/passelin/mock-bff/issues"
+  },
   "engines": {
     "node": ">=20"
   },

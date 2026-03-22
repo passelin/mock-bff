@@ -1,18 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Check,
-  Clipboard,
-  ClipboardCheck,
-  Eye,
-  FileUp,
-  Gauge,
-  ListTree,
-  Logs,
-  Route as RouteIcon,
-  Settings,
-  Sparkles,
-  Upload,
-} from 'lucide-react';
+import { Eye, FileUp, Gauge, ListTree, Logs, Menu, Route as RouteIcon, Settings, Sparkles, Upload, X } from 'lucide-react';
 import { NavLink, Route, Routes } from 'react-router-dom';
 
 type Endpoint = { method: string; path: string; variants: number; hasDefault: boolean };
@@ -41,20 +28,19 @@ function Card(props: {
   );
 }
 
-function Tab({ to, label, icon }: { to: string; label: string; icon?: React.ReactNode }) {
+function Tab({ to, label, icon, onClick }: { to: string; label: string; icon?: React.ReactNode; onClick?: () => void }) {
   return (
     <NavLink
       to={to}
+      onClick={onClick}
       className={({ isActive }) =>
-        `rounded-xl px-3 py-2 text-sm border transition ${
-          isActive ? 'border-brand-500 bg-brand-500/10 text-brand-300' : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+        `inline-flex items-center gap-2 px-3 py-2 text-sm font-medium transition border-b-2 ${
+          isActive ? 'border-brand-400 text-zinc-100' : 'border-transparent text-zinc-400 hover:text-zinc-200 hover:border-zinc-600'
         }`
       }
     >
-      <span className="inline-flex items-center gap-2">
-        {icon}
-        <span>{label}</span>
-      </span>
+      {icon}
+      <span>{label}</span>
     </NavLink>
   );
 }
@@ -87,10 +73,10 @@ export function App() {
   const [createStatus, setCreateStatus] = useState(200);
   const [createBody, setCreateBody] = useState('{\n  "ok": true\n}');
 
-  const [copied, setCopied] = useState('');
   const [toast, setToast] = useState('');
   const [busy, setBusy] = useState(false);
   const [promptDialog, setPromptDialog] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [harFile, setHarFile] = useState<File | null>(null);
   const [openApiFile, setOpenApiFile] = useState<File | null>(null);
@@ -369,49 +355,52 @@ export function App() {
     }
   }
 
-  async function copyLink(kind: 'current' | 'dashboard' | 'endpoints' | 'variants' | 'logs' | 'settings') {
-    const hash =
-      kind === 'current'
-        ? window.location.hash || '#/'
-        : kind === 'dashboard'
-          ? '#/'
-          : kind === 'endpoints'
-            ? '#/endpoints'
-            : kind === 'variants'
-              ? '#/variants'
-              : kind === 'logs'
-                ? '#/logs'
-                : '#/settings';
-    const url = `${window.location.origin}/-/admin${hash}`;
-    await navigator.clipboard.writeText(url);
-    setCopied(kind);
-    setTimeout(() => setCopied(''), 1000);
-  }
-
   return (
-    <main className="mx-auto max-w-7xl p-6 lg:p-8 space-y-6">
-      <header className="rounded-2xl border border-zinc-800 bg-gradient-to-br from-zinc-900 to-zinc-950 p-6 shadow-glow">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight inline-flex items-center gap-3"><Sparkles className="h-7 w-7 text-brand-400" />Mock BFF Admin</h1>
-            <p className="mt-2 text-sm text-zinc-400">Turn HAR traffic into a clean, editable mock backend for rapid UI development.</p>
+    <main className="min-h-screen bg-zinc-950 text-zinc-100">
+      <header className="sticky top-0 z-30 border-b border-zinc-800/80 bg-zinc-950/95 backdrop-blur">
+        <div className="mx-auto max-w-7xl px-4 lg:px-8 h-16 flex items-center justify-between">
+          <div className="inline-flex items-center gap-3">
+            <Sparkles className="h-5 w-5 text-brand-400" />
+            <div>
+              <h1 className="text-sm sm:text-base font-semibold tracking-tight">Mock BFF Admin</h1>
+              <p className="hidden sm:block text-[11px] text-zinc-400">Turn HAR traffic into a clean, editable mock backend for rapid UI development.</p>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => copyLink('current')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800 inline-flex items-center gap-2">{copied === 'current' ? <ClipboardCheck className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}{copied === 'current' ? 'Copied' : 'Copy current'}</button>
-            <button onClick={() => copyLink('dashboard')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800 inline-flex items-center gap-2">{copied === 'dashboard' ? <Check className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}Dashboard</button>
-            <button onClick={() => copyLink('endpoints')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800 inline-flex items-center gap-2">{copied === 'endpoints' ? <Check className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}Endpoints</button>
-            <button onClick={() => copyLink('variants')} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-800 inline-flex items-center gap-2">{copied === 'variants' ? <Check className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}Variants</button>
-          </div>
-        </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Tab to="/" label="Dashboard" icon={<Gauge className="h-4 w-4" />} />
-          <Tab to="/endpoints" label="Endpoints" icon={<ListTree className="h-4 w-4" />} />
-          <Tab to="/variants" label="Variants" icon={<RouteIcon className="h-4 w-4" />} />
-          <Tab to="/logs" label="Logs" icon={<Logs className="h-4 w-4" />} />
-          <Tab to="/settings" label="Settings" icon={<Settings className="h-4 w-4" />} />
+          <button
+            className="lg:hidden rounded-lg border border-zinc-700 p-2"
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          </button>
+
+          <nav className="hidden lg:flex items-center gap-2">
+            <Tab to="/" label="Dashboard" icon={<Gauge className="h-4 w-4" />} />
+            <Tab to="/endpoints" label="Endpoints" icon={<ListTree className="h-4 w-4" />} />
+            <Tab to="/variants" label="Variants" icon={<RouteIcon className="h-4 w-4" />} />
+            <Tab to="/logs" label="Logs" icon={<Logs className="h-4 w-4" />} />
+            <Tab to="/settings" label="Settings" icon={<Settings className="h-4 w-4" />} />
+          </nav>
         </div>
       </header>
+
+      {mobileMenuOpen ? (
+        <div className="lg:hidden fixed inset-0 z-20 bg-black/60" onClick={() => setMobileMenuOpen(false)}>
+          <aside className="absolute right-0 top-0 h-full w-72 bg-zinc-900 border-l border-zinc-800 p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 text-sm font-semibold">Navigation</div>
+            <div className="flex flex-col gap-2">
+              <Tab to="/" label="Dashboard" icon={<Gauge className="h-4 w-4" />} onClick={() => setMobileMenuOpen(false)} />
+              <Tab to="/endpoints" label="Endpoints" icon={<ListTree className="h-4 w-4" />} onClick={() => setMobileMenuOpen(false)} />
+              <Tab to="/variants" label="Variants" icon={<RouteIcon className="h-4 w-4" />} onClick={() => setMobileMenuOpen(false)} />
+              <Tab to="/logs" label="Logs" icon={<Logs className="h-4 w-4" />} onClick={() => setMobileMenuOpen(false)} />
+              <Tab to="/settings" label="Settings" icon={<Settings className="h-4 w-4" />} onClick={() => setMobileMenuOpen(false)} />
+            </div>
+          </aside>
+        </div>
+      ) : null}
+
+      <div className="mx-auto max-w-7xl p-6 lg:p-8 space-y-6">
 
       <Routes>
         <Route
@@ -638,6 +627,7 @@ export function App() {
       ) : null}
 
       {toast ? <div className="fixed bottom-6 right-6 rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2 text-sm shadow-lg">{toast}</div> : null}
+      </div>
     </main>
   );
 }

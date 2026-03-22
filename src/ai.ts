@@ -214,9 +214,12 @@ export async function generateMockResponse(input: AiGenerateInput, config: AppCo
   if (!process.env.OPENAI_API_KEY) return fallbackResponse(input, config);
 
   try {
+    const now = new Date();
     const prompt = [
       "You generate realistic mock API response bodies.",
       "Return ONLY a valid JSON object (no markdown, no prose).",
+      `Current datetime (ISO): ${now.toISOString()}`,
+      `Current date (YYYY-MM-DD): ${now.toISOString().slice(0, 10)}`,
       `Endpoint: ${input.method} ${input.path}`,
       `Query: ${JSON.stringify(input.query)}`,
       `Request body: ${JSON.stringify(input.body)}`,

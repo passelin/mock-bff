@@ -203,20 +203,55 @@ function objectToXml(obj: unknown, root = 'response'): string {
   return `<${root}>${entries}</${root}>`;
 }
 
+function isLikelyCollectionEndpoint(method: string, path: string): boolean {
+  if (method !== 'GET') return false;
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length === 0) return false;
+  const last = segments[segments.length - 1].toLowerCase();
+  if (looksLikeId(last)) return false;
+
+  // common plural heuristics
+  return last.endsWith('s') || last.endsWith('ies');
+}
+
 function synthesizeFallbackBody(input: AiGenerateInput, signature: string): unknown {
   const segments = input.path.split("/").filter(Boolean);
   const last = segments[segments.length - 1];
   const prev = segments[segments.length - 2];
   const idHint = last && looksLikeId(last) ? last : undefined;
+  const isCollection = isLikelyCollectionEndpoint(input.method, input.path);
 
   const contextShape = pickContextShape(input, idHint);
   if (contextShape && typeof contextShape === "object") {
+    if (isCollection) {
+      const entity = last?.toLowerCase() ?? 'items';
+      const item1 = { ...(contextShape as Record<string, unknown>), generated: true, signature };
+      const item2 = { ...(contextShape as Record<string, unknown>), id: typeof item1.id === 'number' ? (item1.id as number) + 1 : '1002', generated: true, signature };
+      return {
+        [entity]: [item1, item2],
+        total: 2,
+        generated: true,
+        signature,
+      };
+    }
     return { ...(contextShape as Record<string, unknown>), generated: true, signature };
   }
 
   const nearbyExample = input.nearbyExamples.find((e) => e.responseBody && typeof e.responseBody === "object")?.responseBody;
   const shaped = synthesizeFromExample(nearbyExample, idHint, `${input.method}:${input.path}`);
-  if (shaped) return { ...(shaped as Record<string, unknown>), generated: true, signature };
+  if (shaped) {
+    if (isCollection) {
+      const entity = last?.toLowerCase() ?? 'items';
+      const item = { ...(shaped as Record<string, unknown>), generated: true, signature };
+      return {
+        [entity]: [item],
+        total: 1,
+        generated: true,
+        signature,
+      };
+    }
+    return { ...(shaped as Record<string, unknown>), generated: true, signature };
+  }
 
   if (input.method === "GET" && idHint && prev) {
     const entity = singularize(prev);
@@ -236,10 +271,25 @@ function synthesizeFallbackBody(input: AiGenerateInput, signature: string): unkn
   }
 
   if (input.method === "GET") {
+    if (isCollection) {
+      const entity = last?.toLowerCase() ?? 'items';
+      const ident1 = syntheticIdentity(`${entity}:1001`);
+      const ident2 = syntheticIdentity(`${entity}:1002`);
+      return {
+        [entity]: [
+          { id: 1001, name: ident1.fullName, email: ident1.email },
+          { id: 1002, name: ident2.fullName, email: ident2.email },
+        ],
+        total: 2,
+        generated: true,
+        signature,
+      };
+    }
+
     return {
       items: [
-        { id: "1001", name: "Mock Item 1" },
-        { id: "1002", name: "Mock Item 2" },
+        { id: '1001', name: 'Mock Item 1' },
+        { id: '1002', name: 'Mock Item 2' },
       ],
       total: 2,
       generated: true,

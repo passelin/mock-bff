@@ -140,6 +140,28 @@ export async function createApp(options: CreateAppOptions) {
     },
   });
 
+  app.setErrorHandler((err, req, reply) => {
+    const entry = {
+      level: 'error',
+      ts: new Date().toISOString(),
+      kind: 'mock-bff-error',
+      method: req.method,
+      url: req.url,
+      message: err.message,
+      name: err.name,
+      stack: err.stack,
+    };
+    process.stderr.write(`${JSON.stringify(entry)}\n`);
+
+    if (!reply.sent) {
+      reply.code(500).send({
+        statusCode: 500,
+        error: 'Internal Server Error',
+        message: err.message || 'Unexpected error',
+      });
+    }
+  });
+
   const adminDistDir = path.join(options.rootDir, "admin", "dist");
   await app.register(fastifyStatic, {
     root: adminDistDir,

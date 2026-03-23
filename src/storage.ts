@@ -47,7 +47,15 @@ export class MockStorage {
   async readConfig(): Promise<AppConfig> {
     const file = path.join(this.metaDir(), "app.config.json");
     try {
-      return { ...DEFAULT_CONFIG, ...(JSON.parse(await readFile(file, "utf8")) as AppConfig) };
+      const parsed = JSON.parse(await readFile(file, "utf8")) as Partial<AppConfig>;
+      return {
+        ...DEFAULT_CONFIG,
+        ...parsed,
+        har: {
+          ...DEFAULT_CONFIG.har,
+          ...(parsed.har ?? {}),
+        },
+      };
     } catch {
       return DEFAULT_CONFIG;
     }

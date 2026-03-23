@@ -115,6 +115,11 @@ export class MockStorage {
     await writeFile(path.join(this.metaDir(), "misses.log.jsonl"), `${JSON.stringify(entry)}\n`, { flag: "a" });
   }
 
+  async clearMisses(): Promise<void> {
+    await mkdir(this.metaDir(), { recursive: true });
+    await writeFile(path.join(this.metaDir(), "misses.log.jsonl"), "", "utf8");
+  }
+
   async appendContext(text: string): Promise<void> {
     await writeFile(path.join(this.metaDir(), "context.md"), `${text}\n`, { flag: "a" });
   }

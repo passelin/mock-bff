@@ -337,11 +337,21 @@ export async function createApp(options: CreateAppOptions) {
     }
   });
 
+  app.delete("/-/api/misses", async () => {
+    await storage.clearMisses();
+    return { cleared: true };
+  });
+
   app.get<{ Querystring: { limit?: string } }>("/-/api/requests", async (req) => {
     const requested = Number(req.query.limit ?? 100);
     const limit = Number.isFinite(requested) ? Math.max(1, Math.min(1000, requested)) : 100;
     const rows = requestLogs.slice(-limit).reverse();
     return { max: maxRequestLogs, count: requestLogs.length, rows };
+  });
+
+  app.delete("/-/api/requests", async () => {
+    requestLogs.splice(0, requestLogs.length);
+    return { cleared: true };
   });
 
   app.get("/-/api/context", async () => ({ context: await readFile(path.join(storage.metaDir(), "context.md"), "utf8") }));

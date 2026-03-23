@@ -145,6 +145,22 @@ export function App() {
     const data = await (await fetch('/-/api/misses')).json();
     setMisses(Array.isArray(data) ? data : []);
   }
+
+  async function clearLogs() {
+    const ok = window.confirm('Clear all request logs?');
+    if (!ok) return;
+    await fetch('/-/api/requests', { method: 'DELETE' });
+    await loadRequests();
+    showToast('Request logs cleared');
+  }
+
+  async function clearMisses() {
+    const ok = window.confirm('Clear all misses?');
+    if (!ok) return;
+    await fetch('/-/api/misses', { method: 'DELETE' });
+    await loadMisses();
+    showToast('Misses cleared');
+  }
   async function loadConfig() {
     setConfigText(JSON.stringify(await (await fetch('/-/api/config')).json(), null, 2));
   }
@@ -636,7 +652,11 @@ export function App() {
           path="/logs"
           element={
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              <Card title="Recent Requests" subtitle="In-memory rolling logs (newest first)." actions={<button onClick={loadRequests} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs">Refresh</button>}>
+              <Card
+                title="Recent Requests"
+                subtitle="In-memory rolling logs (newest first)."
+                actions={<div className="flex gap-2"><button onClick={loadRequests} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs">Refresh</button><button onClick={clearLogs} className="rounded-lg border border-rose-700 text-rose-300 px-3 py-2 text-xs">Clear</button></div>}
+              >
                 {requests.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-zinc-700 p-6 text-sm text-zinc-400">No requests yet. Hit your endpoints to populate this feed.</div>
                 ) : (
@@ -677,7 +697,11 @@ export function App() {
                   </div>
                 )}
               </Card>
-              <Card title="Misses" subtitle="Unmatched requests captured during runtime." actions={<button onClick={loadMisses} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs">Refresh</button>}>
+              <Card
+                title="Misses"
+                subtitle="Unmatched requests captured during runtime."
+                actions={<div className="flex gap-2"><button onClick={loadMisses} className="rounded-lg border border-zinc-700 px-3 py-2 text-xs">Refresh</button><button onClick={clearMisses} className="rounded-lg border border-rose-700 text-rose-300 px-3 py-2 text-xs">Clear</button></div>}
+              >
                 {misses.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-zinc-700 p-6 text-sm text-zinc-400">No misses recorded. Nice coverage so far.</div>
                 ) : (

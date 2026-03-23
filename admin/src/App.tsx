@@ -6,6 +6,19 @@ type Endpoint = { method: string; path: string; variants: number; hasDefault: bo
 type VariantMeta = { id: string; file: string; source?: string; status?: number; createdAt?: string };
 type ReqLog = { at: string; method: string; path: string; match: string; status: number };
 
+const DEFAULT_PROMPT_TEMPLATE = [
+  'You generate realistic mock API response bodies.',
+  'Return ONLY a valid JSON object (no markdown, no prose).',
+  'Current datetime (ISO): {{datetime_iso}}',
+  'Current date (YYYY-MM-DD): {{date}}',
+  'Endpoint: {{method}} {{path}}',
+  'Query: {{query_json}}',
+  'Request body: {{body_json}}',
+  'Request headers: {{headers_json}}',
+  'Context (truncated): {{context}}',
+  'Similar request examples (replicate structure when relevant): {{similar_examples_json}}',
+].join('\n\n');
+
 function Card(props: {
   title: string;
   subtitle?: string;
@@ -59,7 +72,7 @@ export function App() {
   const [requests, setRequests] = useState<ReqLog[]>([]);
   const [misses, setMisses] = useState<any[]>([]);
   const [configText, setConfigText] = useState('');
-  const [promptTemplate, setPromptTemplate] = useState('');
+  const [promptTemplate, setPromptTemplate] = useState(DEFAULT_PROMPT_TEMPLATE);
   const [context, setContext] = useState('');
 
   const [selectedMethod, setSelectedMethod] = useState('');
@@ -165,7 +178,7 @@ export function App() {
   async function loadConfig() {
     const cfg = await (await fetch('/-/api/config')).json();
     setConfigText(JSON.stringify(cfg, null, 2));
-    setPromptTemplate(cfg.aiPromptTemplate ?? '');
+    setPromptTemplate(cfg.aiPromptTemplate && String(cfg.aiPromptTemplate).trim() ? cfg.aiPromptTemplate : DEFAULT_PROMPT_TEMPLATE);
   }
   async function loadContext() {
     const d = await (await fetch('/-/api/context')).json();

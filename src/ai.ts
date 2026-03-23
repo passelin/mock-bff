@@ -69,8 +69,47 @@ function extractJsonObjectsFromContext(context: string): unknown[] {
   return snippets;
 }
 
+function extractTypeScriptInterfaceShape(context: string, interfaceName: string): Record<string, unknown> | undefined {
+  const re = new RegExp(`export\\s+interface\\s+${interfaceName}\\s*\\{([\\s\\S]*?)\\}`, 'i');
+  const m = context.match(re);
+  if (!m) return undefined;
+
+  const body = m[1];
+  const out: Record<string, unknown> = {};
+  const lines = body.split('\n').map((l) => l.trim()).filter(Boolean);
+
+  for (const line of lines) {
+    const lm = line.match(/^([a-zA-Z0-9_]+)\??\s*:\s*([^;]+);?/);
+    if (!lm) continue;
+    const key = lm[1];
+    const type = lm[2].trim();
+
+    if (type.includes('string')) out[key] = fakeValueFromKey(key);
+    else if (type.includes('number')) out[key] = key.toLowerCase().includes('id') ? 1234 : 1;
+    else if (type.includes('boolean')) out[key] = true;
+    else if (type.includes('[]')) out[key] = [];
+    else if (type.includes("'")) {
+      const v = type.match(/'([^']+)'/)?.[1] ?? 'value';
+      out[key] = v;
+    } else out[key] = null;
+  }
+
+  return Object.keys(out).length ? out : undefined;
+}
+
 function pickContextShape(input: AiGenerateInput, idHint?: string): unknown {
-  const segments = input.path.toLowerCase().split("/").filter(Boolean);
+  const path = input.path.toLowerCase();
+  if (path.includes('/users')) {
+    const ts = extractTypeScriptInterfaceShape(input.context, 'User');
+    if (ts) {
+      if (idHint) {
+        ts.id = /^\d+$/.test(idHint) ? Number(idHint) : idHint;
+      }
+      return ts;
+    }
+  }
+
+  const segments = path.split('/').filter(Boolean);
   const contextObjects = extractJsonObjectsFromContext(input.context);
   if (contextObjects.length === 0) return undefined;
 
@@ -78,7 +117,7 @@ function pickContextShape(input: AiGenerateInput, idHint?: string): unknown {
     const text = JSON.stringify(obj).toLowerCase();
     let score = 0;
     for (const s of segments) if (s.length > 2 && text.includes(s)) score += 1;
-    if (idHint && text.includes("id")) score += 1;
+    if (idHint && text.includes('id')) score += 1;
     return { obj, score };
   });
 
@@ -90,6 +129,9 @@ function pickContextShape(input: AiGenerateInput, idHint?: string): unknown {
 }
 
 function detectPreferredFormat(input: AiGenerateInput): "json" | "text" | "html" {
+  // API-like paths should always prefer JSON output, even when browser nav Accept includes text/html.
+  if (input.path.toLowerCase().startsWith('/api/')) return 'json';
+
   const acceptRaw = input.requestHeaders?.accept;
   const accept = Array.isArray(acceptRaw) ? acceptRaw.join(",") : acceptRaw ?? "";
   const a = accept.toLowerCase();

@@ -529,7 +529,7 @@ export function App() {
             <Card
               title="Endpoint Management"
               subtitle="Search, review and clear endpoint groups."
-              actions={<div className="flex items-center gap-2"><button onClick={loadEndpoints} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs inline-flex items-center gap-1"><RefreshCcw className="h-3.5 w-3.5" />Refresh</button><button onClick={clearSelectedEndpoints} disabled={busy || filteredEndpoints.filter((ep) => selectedEndpointKeys[`${ep.method} ${ep.path}`]).length === 0} className="rounded-xl border border-rose-700 text-rose-300 px-3 py-2 text-xs hover:bg-rose-900/30 disabled:opacity-50">Delete selected</button></div>}
+              actions={<div className="flex items-center gap-2"><button onClick={loadEndpoints} className="rounded-xl border border-zinc-700 p-2 text-xs inline-flex items-center" aria-label="Refresh endpoints" title="Refresh endpoints"><RefreshCcw className="h-3.5 w-3.5" /></button><button onClick={clearSelectedEndpoints} disabled={busy || filteredEndpoints.filter((ep) => selectedEndpointKeys[`${ep.method} ${ep.path}`]).length === 0} className="rounded-xl border border-rose-700 text-rose-300 px-3 py-2 text-xs hover:bg-rose-900/30 disabled:opacity-50">Delete selected</button></div>}
             >
               <div className="mb-3">
                 <input value={endpointSearch} onChange={(e) => setEndpointSearch(e.target.value)} placeholder="Search endpoints (method or path)…" className="w-full md:w-96 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-zinc-100 placeholder-zinc-500" />
@@ -588,7 +588,7 @@ export function App() {
                   <Card
                     title="Endpoints"
                     subtitle="Pick endpoint to load variants."
-                    actions={<div className="flex items-center gap-2"><button onClick={loadEndpoints} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs inline-flex items-center gap-1"><RefreshCcw className="h-3.5 w-3.5" />Refresh</button><button onClick={clearSelectedEndpoints} disabled={busy || filteredEndpoints.filter((ep) => selectedEndpointKeys[`${ep.method} ${ep.path}`]).length === 0} className="rounded-xl border border-rose-700 text-rose-300 px-3 py-2 text-xs hover:bg-rose-900/30 disabled:opacity-50">Delete selected</button></div>}
+                    actions={<div className="flex items-center gap-2"><button onClick={loadEndpoints} className="rounded-xl border border-zinc-700 p-2 text-xs inline-flex items-center" aria-label="Refresh endpoints" title="Refresh endpoints"><RefreshCcw className="h-3.5 w-3.5" /></button><button onClick={clearSelectedEndpoints} disabled={busy || filteredEndpoints.filter((ep) => selectedEndpointKeys[`${ep.method} ${ep.path}`]).length === 0} className="rounded-xl border border-rose-700 text-rose-300 px-3 py-2 text-xs hover:bg-rose-900/30 disabled:opacity-50">Delete selected</button></div>}
                   >
                     <div className="mb-3 flex items-center gap-2">
                       <input type="checkbox" checked={allFilteredSelected} onChange={(e) => setAllFilteredSelection(e.target.checked)} />

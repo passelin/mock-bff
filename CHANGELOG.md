@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.0] - 2026-03-22
+
+### Added
+- Anthropic and Ollama provider support alongside OpenAI/none
+- Provider base URL overrides for OpenAI, Anthropic, and Ollama (env + CLI flags)
+- UX upgrades: top navigation + responsive hamburger menu
+- Endpoints bulk selection with delete-selected flow
+- Variant/editor UX improvements (auto-select single variant, inline trash icons, endpoint subtitle ellipsis)
+- Logs table with fixed headers and optional prompt dialog
+
+### Changed
+- Admin APIs moved under /-/api/* and mock runtime at root /*
+- Context writing now records meaningful endpoint-family insights only
+
+### Fixed
+- HAR/replay header handling for transport/CORS safety
+- Non-API requests (e.g. assets) return 404 instead of polluting misses
+
 All notable changes to this project will be documented in this file.
 
 ## [0.2.0] - 2026-03-22

@@ -25,11 +25,40 @@ function looksLikeId(value: string): boolean {
   return /^[a-z0-9_-]{3,}$/i.test(value);
 }
 
-function fakeValueFromKey(key: string, idHint?: string): unknown {
+const FIRST_NAMES = ["Avery", "Maya", "Noah", "Liam", "Sofia", "Ethan", "Aria", "Lucas", "Emma", "Milo", "Zoe", "Nina"];
+const LAST_NAMES = ["Chen", "Patel", "Nguyen", "Garcia", "Miller", "Khan", "Singh", "Lopez", "Wright", "Fischer", "Kim", "Brown"];
+const EMAIL_DOMAINS = ["example.com", "example.org", "demo.app", "sample.test"];
+
+function seededIndex(seed: string, max: number): number {
+  const h = shortHash(seed);
+  const num = parseInt(h.slice(0, 6), 16);
+  return Number.isFinite(num) ? num % max : 0;
+}
+
+function syntheticIdentity(seed: string) {
+  const first = FIRST_NAMES[seededIndex(`first:${seed}`, FIRST_NAMES.length)];
+  const last = LAST_NAMES[seededIndex(`last:${seed}`, LAST_NAMES.length)];
+  const domain = EMAIL_DOMAINS[seededIndex(`domain:${seed}`, EMAIL_DOMAINS.length)];
+  const handle = `${first}.${last}`.toLowerCase();
+  return {
+    first,
+    last,
+    fullName: `${first} ${last}`,
+    email: `${handle}@${domain}`,
+    username: `${first.toLowerCase()}_${last.toLowerCase()}`,
+  };
+}
+
+function fakeValueFromKey(key: string, idHint?: string, seed = "default"): unknown {
   const k = key.toLowerCase();
+  const ident = syntheticIdentity(`${seed}:${idHint ?? ''}`);
+
   if (k === "id" || k.endsWith("_id")) return idHint ?? "id_1234";
-  if (k.includes("name")) return idHint ? `User ${idHint}` : "Mock Name";
-  if (k.includes("email")) return idHint ? `user${idHint}@example.com` : "user@example.com";
+  if (k === 'firstname' || k === 'first_name') return ident.first;
+  if (k === 'lastname' || k === 'last_name') return ident.last;
+  if (k === 'fullname' || k === 'full_name' || k.includes("name")) return ident.fullName;
+  if (k.includes("email")) return ident.email;
+  if (k.includes("username") || k === 'handle') return ident.username;
   if (k.includes("phone")) return "+1-555-0100";
   if (k.includes("active") || k.startsWith("is_") || k.startsWith("has_")) return true;
   if (k.includes("count") || k.includes("total")) return 1;
@@ -38,11 +67,11 @@ function fakeValueFromKey(key: string, idHint?: string): unknown {
   return "mock";
 }
 
-function synthesizeFromExample(example: unknown, idHint?: string): unknown {
+function synthesizeFromExample(example: unknown, idHint?: string, seed = "default"): unknown {
   if (!example || typeof example !== "object" || Array.isArray(example)) return undefined;
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(example as Record<string, unknown>)) {
-    out[key] = fakeValueFromKey(key, idHint);
+    out[key] = fakeValueFromKey(key, idHint, seed);
   }
   return out;
 }
@@ -102,9 +131,16 @@ function pickContextShape(input: AiGenerateInput, idHint?: string): unknown {
   if (path.includes('/users')) {
     const ts = extractTypeScriptInterfaceShape(input.context, 'User');
     if (ts) {
+      const seed = `${input.method}:${input.path}`;
+      const ident = syntheticIdentity(seed);
       if (idHint) {
         ts.id = /^\d+$/.test(idHint) ? Number(idHint) : idHint;
       }
+      if ('firstName' in ts) ts.firstName = ident.first;
+      if ('lastName' in ts) ts.lastName = ident.last;
+      if ('fullName' in ts) ts.fullName = ident.fullName;
+      if ('email' in ts) ts.email = ident.email;
+      if ('username' in ts) ts.username = ident.username;
       return ts;
     }
   }
@@ -125,20 +161,42 @@ function pickContextShape(input: AiGenerateInput, idHint?: string): unknown {
   const best = scored[0];
   if (!best || best.score <= 0) return undefined;
 
-  return synthesizeFromExample(best.obj, idHint) ?? best.obj;
+  return synthesizeFromExample(best.obj, idHint, `${input.method}:${input.path}`) ?? best.obj;
 }
 
-function detectPreferredFormat(input: AiGenerateInput): "json" | "text" | "html" {
-  // API-like paths should always prefer JSON output, even when browser nav Accept includes text/html.
-  if (input.path.toLowerCase().startsWith('/api/')) return 'json';
-
+function detectPreferredFormat(input: AiGenerateInput): "json" | "text" | "html" | "xml" {
   const acceptRaw = input.requestHeaders?.accept;
   const accept = Array.isArray(acceptRaw) ? acceptRaw.join(",") : acceptRaw ?? "";
   const a = accept.toLowerCase();
 
+  const isSpecificSingle = a && !a.includes(',') && !a.includes('*/*');
+
+  // If the caller asks explicitly for one format, honor it.
+  if (isSpecificSingle) {
+    if (a.includes('application/xml') || a.includes('text/xml')) return 'xml';
+    if (a.includes('text/plain')) return 'text';
+    if (a.includes('text/html')) return 'html';
+    if (a.includes('application/json')) return 'json';
+  }
+
+  // Browser-style accepts should not force HTML for API paths.
+  if (input.path.toLowerCase().startsWith('/api/')) return 'json';
+
+  if (a.includes("application/xml") || a.includes("text/xml")) return "xml";
   if (a.includes("text/html")) return "html";
   if (a.includes("text/plain") && !a.includes("application/json")) return "text";
   return "json";
+}
+
+function objectToXml(obj: unknown, root = 'response'): string {
+  if (obj === null || obj === undefined) return `<${root}></${root}>`;
+  if (typeof obj !== 'object') return `<${root}>${String(obj)}</${root}>`;
+  if (Array.isArray(obj)) return `<${root}>${obj.map((v) => objectToXml(v, 'item')).join('')}</${root}>`;
+
+  const entries = Object.entries(obj as Record<string, unknown>)
+    .map(([k, v]) => objectToXml(v, k))
+    .join('');
+  return `<${root}>${entries}</${root}>`;
 }
 
 function synthesizeFallbackBody(input: AiGenerateInput, signature: string): unknown {
@@ -153,17 +211,21 @@ function synthesizeFallbackBody(input: AiGenerateInput, signature: string): unkn
   }
 
   const nearbyExample = input.nearbyExamples.find((e) => e.responseBody && typeof e.responseBody === "object")?.responseBody;
-  const shaped = synthesizeFromExample(nearbyExample, idHint);
+  const shaped = synthesizeFromExample(nearbyExample, idHint, `${input.method}:${input.path}`);
   if (shaped) return { ...(shaped as Record<string, unknown>), generated: true, signature };
 
   if (input.method === "GET" && idHint && prev) {
     const entity = singularize(prev);
+    const ident = syntheticIdentity(`${entity}:${idHint}`);
     return {
-      id: idHint,
+      id: /^\d+$/.test(idHint) ? Number(idHint) : idHint,
       type: entity,
-      name: `${entity[0]?.toUpperCase() ?? "E"}${entity.slice(1)} ${idHint}`,
+      name: ident.fullName,
+      firstName: ident.first,
+      lastName: ident.last,
+      username: ident.username,
       status: "active",
-      email: `${entity}${idHint}@example.com`,
+      email: ident.email,
       generated: true,
       signature,
     };
@@ -205,9 +267,18 @@ function fallbackResponse(input: AiGenerateInput, config: AppConfig, promptHint?
       ? `Mock response for ${input.method} ${input.path}`
       : format === "html"
         ? `<html><body><pre>${JSON.stringify(bodyObject, null, 2)}</pre></body></html>`
-        : bodyObject;
+        : format === "xml"
+          ? objectToXml(bodyObject, 'response')
+          : bodyObject;
 
-  const contentType = format === "text" ? "text/plain; charset=utf-8" : format === "html" ? "text/html; charset=utf-8" : "application/json";
+  const contentType =
+    format === "text"
+      ? "text/plain; charset=utf-8"
+      : format === "html"
+        ? "text/html; charset=utf-8"
+        : format === "xml"
+          ? "application/xml; charset=utf-8"
+          : "application/json";
 
   return {
     requestSignature: {

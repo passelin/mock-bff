@@ -37,14 +37,9 @@ function maskApiKey(value?: string): string | null {
   return `${trimmed.slice(0, 6)}…`;
 }
 
-function isExcludedModelName(name: string): boolean {
-  const n = name.toLowerCase();
-  return n.includes("vision") || n.includes("function");
-}
-
 function normalizeModelList(models: string[]): string[] {
   return [...new Set(models)]
-    .filter((m) => m && !isExcludedModelName(m))
+    .filter((m) => m)
     .sort((a, b) => a.localeCompare(b));
 }
 
@@ -60,12 +55,49 @@ function ollamaTagsUrl(base: string): string {
   return `${normalized}/api/tags`;
 }
 
+function ollamaShowUrl(base: string): string {
+  const normalized = base.replace(/\/+$/, "").replace(/\/v1$/, "");
+  return `${normalized}/api/show`;
+}
+
+async function ollamaCapabilities(base: string, model: string): Promise<string[]> {
+  try {
+    const res = await fetch(ollamaShowUrl(base), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model }),
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { capabilities?: string[]; details?: { capabilities?: string[] } };
+    return data.capabilities ?? data.details?.capabilities ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function keepByCapabilities(caps: string[]): boolean {
+  if (!caps || caps.length === 0) return true; // unknown => keep
+  const c = caps.map((x) => x.toLowerCase());
+  const hasCompletion = c.includes('completion') || c.includes('generate') || c.includes('text');
+  const onlyVision = c.includes('vision') && !hasCompletion;
+  const onlyFunction = (c.includes('tools') || c.includes('function') || c.includes('tool-calling')) && !hasCompletion;
+  return !onlyVision && !onlyFunction;
+}
+
 async function listOllamaModels(base: string): Promise<string[]> {
   try {
     const res = await fetch(ollamaTagsUrl(base));
     if (!res.ok) return [];
     const data = (await res.json()) as { models?: Array<{ name?: string }> };
-    return normalizeModelList((data.models ?? []).map((m) => m.name).filter((x): x is string => Boolean(x)));
+    const names = (data.models ?? []).map((m) => m.name).filter((x): x is string => Boolean(x));
+
+    const kept: string[] = [];
+    for (const name of names) {
+      const caps = await ollamaCapabilities(base, name);
+      if (keepByCapabilities(caps)) kept.push(name);
+    }
+
+    return normalizeModelList(kept);
   } catch {
     return [];
   }

@@ -5,6 +5,10 @@ import { NavLink, Route, Routes } from 'react-router-dom';
 type Endpoint = { method: string; path: string; variants: number; hasDefault: boolean };
 type VariantMeta = { id: string; file: string; source?: string; status?: number; createdAt?: string };
 type ReqLog = { at: string; method: string; path: string; match: string; status: number };
+type ProviderInfo = {
+  current?: { provider?: string; model?: string };
+  providers?: Record<string, { models?: string[]; baseUrl?: string | null; apiKeyPreview?: string | null; apiKeyHint?: string }>;
+};
 
 const DEFAULT_PROMPT_TEMPLATE = [
   'You generate realistic mock API response bodies.',
@@ -73,6 +77,12 @@ export function App() {
   const [misses, setMisses] = useState<any[]>([]);
   const [configText, setConfigText] = useState('');
   const [promptTemplate, setPromptTemplate] = useState(DEFAULT_PROMPT_TEMPLATE);
+  const [providerInfo, setProviderInfo] = useState<ProviderInfo>({});
+  const [providerName, setProviderName] = useState('openai');
+  const [providerModel, setProviderModel] = useState('gpt-5.4-mini');
+  const [openaiBaseUrl, setOpenaiBaseUrl] = useState('https://api.openai.com/v1');
+  const [anthropicBaseUrl, setAnthropicBaseUrl] = useState('https://api.anthropic.com');
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState('http://127.0.0.1:11434/v1');
   const [context, setContext] = useState('');
 
   const [selectedMethod, setSelectedMethod] = useState('');
@@ -145,7 +155,7 @@ export function App() {
   }
 
   async function refresh() {
-    await Promise.all([loadEndpoints(), loadRequests(), loadMisses(), loadConfig(), loadContext()]);
+    await Promise.all([loadEndpoints(), loadRequests(), loadMisses(), loadConfig(), loadProviders(), loadContext()]);
   }
 
   async function loadEndpoints() {
@@ -179,6 +189,16 @@ export function App() {
     const cfg = await (await fetch('/-/api/config')).json();
     setConfigText(JSON.stringify(cfg, null, 2));
     setPromptTemplate(cfg.aiPromptTemplate && String(cfg.aiPromptTemplate).trim() ? cfg.aiPromptTemplate : DEFAULT_PROMPT_TEMPLATE);
+    setProviderName(cfg.aiProvider ?? 'openai');
+    setProviderModel(cfg.aiModel ?? 'gpt-5.4-mini');
+    setOpenaiBaseUrl(cfg.providerBaseUrls?.openai ?? 'https://api.openai.com/v1');
+    setAnthropicBaseUrl(cfg.providerBaseUrls?.anthropic ?? 'https://api.anthropic.com');
+    setOllamaBaseUrl(cfg.providerBaseUrls?.ollama ?? 'http://127.0.0.1:11434/v1');
+  }
+
+  async function loadProviders() {
+    const data = await (await fetch('/-/api/providers')).json();
+    setProviderInfo(data ?? {});
   }
   async function loadContext() {
     const d = await (await fetch('/-/api/context')).json();
@@ -397,6 +417,14 @@ export function App() {
     try {
       const parsed = JSON.parse(configText);
       parsed.aiPromptTemplate = promptTemplate;
+      parsed.aiProvider = providerName;
+      parsed.aiModel = providerModel;
+      parsed.providerBaseUrls = {
+        ...(parsed.providerBaseUrls ?? {}),
+        openai: openaiBaseUrl,
+        anthropic: anthropicBaseUrl,
+        ollama: ollamaBaseUrl,
+      };
       await fetch('/-/api/config', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
@@ -759,6 +787,52 @@ export function App() {
                   <input type="checkbox" checked={getAiStorePrompt()} onChange={(e) => setAiStorePrompt(e.target.checked)} />
                   Store AI generation prompt with saved generated variants (off by default)
                 </label>
+
+                <div className="mb-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <p className="mb-1 text-xs text-zinc-400">AI Provider</p>
+                    <select value={providerName} onChange={(e) => setProviderName(e.target.value)} className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs">
+                      {Object.keys(providerInfo.providers ?? { openai: {}, anthropic: {}, ollama: {}, none: {} }).map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <p className="mb-1 text-xs text-zinc-400">Model</p>
+                    <input
+                      list="provider-models"
+                      value={providerModel}
+                      onChange={(e) => setProviderModel(e.target.value)}
+                      className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs"
+                    />
+                    <datalist id="provider-models">
+                      {(providerInfo.providers?.[providerName]?.models ?? []).map((m) => (
+                        <option key={m} value={m} />
+                      ))}
+                    </datalist>
+                  </div>
+                </div>
+
+                <div className="mb-3 grid grid-cols-1 gap-2">
+                  <label className="text-xs text-zinc-400">OpenAI Base URL
+                    <input value={openaiBaseUrl} onChange={(e) => setOpenaiBaseUrl(e.target.value)} className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs" />
+                  </label>
+                  <label className="text-xs text-zinc-400">Anthropic Base URL
+                    <input value={anthropicBaseUrl} onChange={(e) => setAnthropicBaseUrl(e.target.value)} className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs" />
+                  </label>
+                  <label className="text-xs text-zinc-400">Ollama Base URL
+                    <input value={ollamaBaseUrl} onChange={(e) => setOllamaBaseUrl(e.target.value)} className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs" />
+                  </label>
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-2 text-[11px] text-zinc-400 space-y-1">
+                    <div>OpenAI key: <span className="text-zinc-200">{providerInfo.providers?.openai?.apiKeyPreview ?? 'not set'}</span></div>
+                    <div>{providerInfo.providers?.openai?.apiKeyHint ?? 'Set OPENAI_API_KEY in your shell before starting dev.'}</div>
+                    <div className="pt-1">Anthropic key: <span className="text-zinc-200">{providerInfo.providers?.anthropic?.apiKeyPreview ?? 'not set'}</span></div>
+                    <div>{providerInfo.providers?.anthropic?.apiKeyHint ?? 'Set ANTHROPIC_API_KEY in your shell before starting dev.'}</div>
+                  </div>
+                  <div>
+                    <button onClick={loadProviders} type="button" className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs">Refresh provider/model list</button>
+                  </div>
+                </div>
 
                 <div className="mb-3">
                   <p className="mb-1 text-xs text-zinc-400">AI Prompt Template (optional)</p>

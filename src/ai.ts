@@ -215,45 +215,6 @@ function isLikelyCollectionEndpoint(method: string, path: string): boolean {
   return last.endsWith('s') || last.endsWith('ies');
 }
 
-function normalizeCollectionBody(input: AiGenerateInput, body: unknown): unknown {
-  if (!isLikelyCollectionEndpoint(input.method, input.path)) return body;
-
-  const segments = input.path.split('/').filter(Boolean);
-  const entity = (segments[segments.length - 1] ?? 'items').toLowerCase();
-
-  const qLimit = Number(
-    Array.isArray(input.query.limit) ? input.query.limit[0] : input.query.limit,
-  );
-  const limit = Number.isFinite(qLimit) && qLimit > 0 ? Math.min(qLimit, 50) : 2;
-
-  if (Array.isArray(body)) return { [entity]: body, total: body.length, generated: true };
-
-  if (body && typeof body === 'object') {
-    const obj = body as Record<string, unknown>;
-    const existingList = obj[entity];
-    if (Array.isArray(existingList)) {
-      return { ...obj, total: typeof obj.total === 'number' ? obj.total : existingList.length, generated: true };
-    }
-
-    const rows = Array.from({ length: limit }, (_v, i) => {
-      const seed = `${entity}:${i + 1}`;
-      const ident = syntheticIdentity(seed);
-      return {
-        ...obj,
-        id: typeof obj.id === 'number' ? i + 1 : (obj.id ?? i + 1),
-        name: typeof obj.name === 'string' ? obj.name : ident.fullName,
-        email: typeof obj.email === 'string' ? obj.email : ident.email,
-      };
-    });
-    return { [entity]: rows, total: rows.length, generated: true };
-  }
-
-  return {
-    [entity]: Array.from({ length: limit }, (_v, i) => ({ id: i + 1 })),
-    total: limit,
-    generated: true,
-  };
-}
 
 function synthesizeFallbackBody(input: AiGenerateInput, signature: string): unknown {
   const segments = input.path.split("/").filter(Boolean);
@@ -266,8 +227,13 @@ function synthesizeFallbackBody(input: AiGenerateInput, signature: string): unkn
   if (contextShape && typeof contextShape === "object") {
     if (isCollection) {
       const entity = last?.toLowerCase() ?? 'items';
-      const item1 = { ...(contextShape as Record<string, unknown>), generated: true, signature };
-      const item2 = { ...(contextShape as Record<string, unknown>), id: typeof item1.id === 'number' ? (item1.id as number) + 1 : '1002', generated: true, signature };
+      const item1 = { ...(contextShape as Record<string, unknown>), generated: true, signature } as Record<string, unknown>;
+      const item2 = {
+        ...(contextShape as Record<string, unknown>),
+        id: typeof item1.id === 'number' ? (item1.id as number) + 1 : '1002',
+        generated: true,
+        signature,
+      };
       return {
         [entity]: [item1, item2],
         total: 2,
@@ -450,9 +416,9 @@ function buildPrompt(input: AiGenerateInput, config: AppConfig, now: Date): stri
   return buildDefaultPrompt(input, now);
 }
 
-function selectModel(provider: string, model: string) {
+function selectModel(provider: string, model: string, config: AppConfig) {
   if (provider === "openai") {
-    const baseURL = process.env.OPENAI_BASE_URL;
+    const baseURL = process.env.OPENAI_BASE_URL ?? config.providerBaseUrls?.openai;
     if (baseURL) {
       const customOpenAI = createOpenAI({ baseURL });
       return customOpenAI(model);
@@ -461,7 +427,7 @@ function selectModel(provider: string, model: string) {
   }
 
   if (provider === "anthropic") {
-    const baseURL = process.env.ANTHROPIC_BASE_URL;
+    const baseURL = process.env.ANTHROPIC_BASE_URL ?? config.providerBaseUrls?.anthropic;
     if (baseURL) {
       const customAnthropic = createAnthropic({ baseURL });
       return customAnthropic(model);
@@ -470,7 +436,7 @@ function selectModel(provider: string, model: string) {
   }
 
   if (provider === "ollama") {
-    const baseURL = process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434/v1";
+    const baseURL = process.env.OLLAMA_BASE_URL ?? config.providerBaseUrls?.ollama ?? "http://127.0.0.1:11434/v1";
     const ollama = createOpenAICompatible({
       name: "ollama",
       baseURL,
@@ -507,7 +473,7 @@ export async function generateMockResponse(input: AiGenerateInput, config: AppCo
   }
 
   try {
-    const model = selectModel(provider, process.env.MOCK_AI_MODEL ?? config.aiModel ?? (provider === "anthropic" ? "claude-3-5-sonnet-latest" : provider === "ollama" ? "llama3.1:8b" : "gpt-5.4-mini"));
+    const model = selectModel(provider, process.env.MOCK_AI_MODEL ?? config.aiModel ?? (provider === "anthropic" ? "claude-3-5-sonnet-latest" : provider === "ollama" ? "llama3.1:8b" : "gpt-5.4-mini"), config);
 
     const result = await generateText({
       model,
@@ -521,8 +487,7 @@ export async function generateMockResponse(input: AiGenerateInput, config: AppCo
       providerOptions: config.aiSeed !== undefined ? { openai: { seed: config.aiSeed } } : undefined,
     });
 
-    const rawBody = result.output?.body ?? parseJsonObject(result.text);
-    const body = normalizeCollectionBody(input, rawBody);
+    const body = result.output?.body ?? parseJsonObject(result.text);
 
     return {
       requestSignature: {

@@ -10,6 +10,11 @@ const DEFAULT_CONFIG: AppConfig = {
   aiProvider: "openai",
   aiModel: "gpt-5.4-mini",
   aiStorePrompt: false,
+  providerBaseUrls: {
+    openai: "https://api.openai.com/v1",
+    anthropic: "https://api.anthropic.com",
+    ollama: "http://127.0.0.1:11434/v1",
+  },
   aiPromptTemplate: `You are an HTTP server for a Single Page Application.
 Read the incoming HTTP request and return the most realistic successful HTTP response for a production-style REST API.
 
@@ -121,6 +126,10 @@ export class MockStorage {
         har: {
           ...DEFAULT_CONFIG.har,
           ...(parsed.har ?? {}),
+        },
+        providerBaseUrls: {
+          ...DEFAULT_CONFIG.providerBaseUrls,
+          ...(parsed.providerBaseUrls ?? {}),
         },
       };
     } catch {

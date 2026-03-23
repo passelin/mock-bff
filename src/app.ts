@@ -11,7 +11,7 @@ import { buildVariantName, matchMock } from "./matcher.js";
 import { generateMockResponse } from "./ai.js";
 import { normalizePath, normalizeQuery } from "./utils.js";
 import { loadOpenApiFile, validateResponseWithOpenApi } from "./openapi.js";
-import type { IndexEntry, StoredMock } from "./types.js";
+import type { AppConfig, IndexEntry, StoredMock } from "./types.js";
 
 const DROPPED_REPLAY_HEADERS = [
   "content-encoding",
@@ -28,6 +28,36 @@ function sanitizeReplayHeaders(headers: Record<string, string>): Record<string, 
     out[k] = v;
   }
   return out;
+}
+
+function maskApiKey(value?: string): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return `${trimmed.slice(0, 6)}…`;
+}
+
+function knownModels(provider: "openai" | "anthropic" | "ollama" | "none"): string[] {
+  if (provider === "openai") return ["gpt-5.4", "gpt-5.4-mini", "gpt-4.1", "gpt-4o"];
+  if (provider === "anthropic") return ["claude-3-7-sonnet-latest", "claude-3-5-sonnet-latest", "claude-3-5-haiku-latest"];
+  if (provider === "ollama") return ["llama3.1:8b", "qwen2.5:7b", "mistral:7b"];
+  return [];
+}
+
+function ollamaTagsUrl(base: string): string {
+  const normalized = base.replace(/\/+$/, "").replace(/\/v1$/, "");
+  return `${normalized}/api/tags`;
+}
+
+async function listOllamaModels(base: string): Promise<string[]> {
+  try {
+    const res = await fetch(ollamaTagsUrl(base));
+    if (!res.ok) return [];
+    const data = (await res.json()) as { models?: Array<{ name?: string }> };
+    return (data.models ?? []).map((m) => m.name).filter((x): x is string => Boolean(x));
+  } catch {
+    return [];
+  }
 }
 
 export interface CreateAppOptions {
@@ -141,15 +171,16 @@ export async function createApp(options: CreateAppOptions) {
   });
 
   app.setErrorHandler((err, req, reply) => {
+    const e = err as Error;
     const entry = {
       level: 'error',
       ts: new Date().toISOString(),
       kind: 'mock-bff-error',
       method: req.method,
       url: req.url,
-      message: err.message,
-      name: err.name,
-      stack: err.stack,
+      message: e.message,
+      name: e.name,
+      stack: e.stack,
     };
     process.stderr.write(`${JSON.stringify(entry)}\n`);
 
@@ -157,7 +188,7 @@ export async function createApp(options: CreateAppOptions) {
       reply.code(500).send({
         statusCode: 500,
         error: 'Internal Server Error',
-        message: err.message || 'Unexpected error',
+        message: e.message || 'Unexpected error',
       });
     }
   });
@@ -186,16 +217,59 @@ export async function createApp(options: CreateAppOptions) {
   app.patch<{ Body: Record<string, unknown> }>("/-/api/config", async (req) => {
     const prev = await storage.readConfig();
     const patch = req.body as Record<string, unknown>;
-    const next = {
+    const next: AppConfig = {
       ...prev,
       ...patch,
       har: {
         ...prev.har,
         ...(typeof patch.har === 'object' && patch.har ? (patch.har as Record<string, unknown>) : {}),
       },
+      providerBaseUrls: {
+        ...prev.providerBaseUrls,
+        ...(typeof patch.providerBaseUrls === 'object' && patch.providerBaseUrls ? (patch.providerBaseUrls as Record<string, unknown>) : {}),
+      },
     };
     await storage.writeConfig(next);
     return next;
+  });
+
+  app.get("/-/api/providers", async () => {
+    const cfg = await storage.readConfig();
+    const ollamaBase = process.env.OLLAMA_BASE_URL ?? cfg.providerBaseUrls?.ollama ?? "http://127.0.0.1:11434/v1";
+    const ollamaModels = await listOllamaModels(ollamaBase);
+
+    return {
+      current: {
+        provider: cfg.aiProvider ?? "openai",
+        model: cfg.aiModel ?? "gpt-5.4-mini",
+      },
+      providers: {
+        openai: {
+          models: knownModels("openai"),
+          baseUrl: process.env.OPENAI_BASE_URL ?? cfg.providerBaseUrls?.openai,
+          apiKeyPreview: maskApiKey(process.env.OPENAI_API_KEY),
+          apiKeyHint: "Set OPENAI_API_KEY before starting dev server (e.g. export OPENAI_API_KEY=...).",
+        },
+        anthropic: {
+          models: knownModels("anthropic"),
+          baseUrl: process.env.ANTHROPIC_BASE_URL ?? cfg.providerBaseUrls?.anthropic,
+          apiKeyPreview: maskApiKey(process.env.ANTHROPIC_API_KEY),
+          apiKeyHint: "Set ANTHROPIC_API_KEY before starting dev server (e.g. export ANTHROPIC_API_KEY=...).",
+        },
+        ollama: {
+          models: ollamaModels.length ? ollamaModels : knownModels("ollama"),
+          baseUrl: ollamaBase,
+          apiKeyPreview: null,
+          apiKeyHint: "No API key required by default for local Ollama.",
+        },
+        none: {
+          models: [],
+          baseUrl: null,
+          apiKeyPreview: null,
+          apiKeyHint: "Disables model calls and uses deterministic fallback generation.",
+        },
+      },
+    };
   });
 
   app.post("/-/api/openapi", async (req, reply) => {

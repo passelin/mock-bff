@@ -8,6 +8,11 @@ export interface AppConfig {
   aiProvider?: "openai" | "anthropic" | "ollama" | "none";
   aiModel?: string;
   aiStorePrompt?: boolean;
+  providerBaseUrls?: {
+    openai?: string;
+    anthropic?: string;
+    ollama?: string;
+  };
   ignoredQueryParams: string[];
   redactHeaders: string[];
   redactBodyKeys: string[];

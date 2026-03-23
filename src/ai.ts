@@ -179,8 +179,12 @@ function detectPreferredFormat(input: AiGenerateInput): "json" | "text" | "html"
     if (a.includes('application/json')) return 'json';
   }
 
-  // Browser-style accepts should not force HTML for API paths.
-  if (input.path.toLowerCase().startsWith('/api/')) return 'json';
+  // Browser-generic navigation Accept should default to JSON for mock API behavior.
+  const looksBrowserGeneric =
+    a.includes('text/html') &&
+    a.includes('application/xhtml+xml') &&
+    (a.includes('application/xml') || a.includes('*/*'));
+  if (looksBrowserGeneric) return 'json';
 
   if (a.includes("application/xml") || a.includes("text/xml")) return "xml";
   if (a.includes("text/html")) return "html";

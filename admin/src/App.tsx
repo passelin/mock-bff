@@ -681,7 +681,28 @@ export function App() {
                 {misses.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-zinc-700 p-6 text-sm text-zinc-400">No misses recorded. Nice coverage so far.</div>
                 ) : (
-                  <pre className="max-h-[34rem] overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs">{JSON.stringify(misses, null, 2)}</pre>
+                  <div className="max-h-[34rem] overflow-auto rounded-xl border border-zinc-800">
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0 bg-zinc-900 text-zinc-300 border-b border-zinc-800">
+                        <tr>
+                          <th className="px-3 py-2 text-left">Time</th>
+                          <th className="px-3 py-2 text-left">Method</th>
+                          <th className="px-3 py-2 text-left">Path</th>
+                          <th className="px-3 py-2 text-left">Resolved By</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {misses.map((m: any, i: number) => (
+                          <tr key={`${m.at}-${i}`} className="border-b border-zinc-800/70 hover:bg-zinc-800/20">
+                            <td className="px-3 py-2 whitespace-nowrap text-zinc-400">{m.at ? new Date(m.at).toLocaleTimeString() : '—'}</td>
+                            <td className="px-3 py-2 font-mono text-brand-300">{m.method ?? '—'}</td>
+                            <td className="px-3 py-2 font-mono break-all">{m.path ?? '—'}</td>
+                            <td className="px-3 py-2">{m.resolvedBy ?? '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </Card>
             </div>

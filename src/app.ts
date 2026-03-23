@@ -37,10 +37,21 @@ function maskApiKey(value?: string): string | null {
   return `${trimmed.slice(0, 6)}…`;
 }
 
+function isExcludedModelName(name: string): boolean {
+  const n = name.toLowerCase();
+  return n.includes("vision") || n.includes("function");
+}
+
+function normalizeModelList(models: string[]): string[] {
+  return [...new Set(models)]
+    .filter((m) => m && !isExcludedModelName(m))
+    .sort((a, b) => a.localeCompare(b));
+}
+
 function knownModels(provider: "openai" | "anthropic" | "ollama" | "none"): string[] {
-  if (provider === "openai") return ["gpt-5.4", "gpt-5.4-mini", "gpt-4.1", "gpt-4o"];
-  if (provider === "anthropic") return ["claude-3-7-sonnet-latest", "claude-3-5-sonnet-latest", "claude-3-5-haiku-latest"];
-  if (provider === "ollama") return ["llama3.1:8b", "qwen2.5:7b", "mistral:7b"];
+  if (provider === "openai") return normalizeModelList(["gpt-5.4", "gpt-5.4-mini", "gpt-4.1", "gpt-4o"]);
+  if (provider === "anthropic") return normalizeModelList(["claude-3-7-sonnet-latest", "claude-3-5-sonnet-latest", "claude-3-5-haiku-latest"]);
+  if (provider === "ollama") return normalizeModelList(["llama3.1:8b", "qwen2.5:7b", "mistral:7b"]);
   return [];
 }
 
@@ -54,7 +65,7 @@ async function listOllamaModels(base: string): Promise<string[]> {
     const res = await fetch(ollamaTagsUrl(base));
     if (!res.ok) return [];
     const data = (await res.json()) as { models?: Array<{ name?: string }> };
-    return (data.models ?? []).map((m) => m.name).filter((x): x is string => Boolean(x));
+    return normalizeModelList((data.models ?? []).map((m) => m.name).filter((x): x is string => Boolean(x)));
   } catch {
     return [];
   }

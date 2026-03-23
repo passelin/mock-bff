@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Eye, FileUp, Gauge, ListTree, Logs, Menu, Route as RouteIcon, Settings, Sparkles, Trash2, Upload, X } from 'lucide-react';
+import { Eye, FileUp, Gauge, ListTree, Logs, Menu, RefreshCcw, Route as RouteIcon, Settings, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { NavLink, Route, Routes } from 'react-router-dom';
 
 type Endpoint = { method: string; path: string; variants: number; hasDefault: boolean };
@@ -603,6 +603,9 @@ export function App() {
                             <button onClick={() => loadVariants(ep.method, ep.path)} className="flex-1 text-left">
                               <div className="font-mono text-xs text-brand-300">{ep.method}</div>
                               <div className="font-mono text-xs break-all mt-1">{ep.path}</div>
+                            </button>
+                            <button onClick={() => loadVariants(ep.method, ep.path)} className="self-center rounded p-1.5 text-zinc-300 hover:bg-zinc-800 shrink-0" aria-label="Refresh endpoint variants" title="Refresh endpoint variants">
+                              <RefreshCcw className="h-4 w-4" />
                             </button>
                             <button onClick={() => clearEndpoint(ep.method, ep.path)} className="self-center rounded p-1.5 text-rose-300 hover:bg-rose-900/30 shrink-0" aria-label="Delete endpoint" title="Delete endpoint">
                               <Trash2 className="h-4 w-4" />

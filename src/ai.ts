@@ -215,6 +215,46 @@ function isLikelyCollectionEndpoint(method: string, path: string): boolean {
   return last.endsWith('s') || last.endsWith('ies');
 }
 
+function normalizeCollectionBody(input: AiGenerateInput, body: unknown): unknown {
+  if (!isLikelyCollectionEndpoint(input.method, input.path)) return body;
+
+  const segments = input.path.split('/').filter(Boolean);
+  const entity = (segments[segments.length - 1] ?? 'items').toLowerCase();
+
+  const qLimit = Number(
+    Array.isArray(input.query.limit) ? input.query.limit[0] : input.query.limit,
+  );
+  const limit = Number.isFinite(qLimit) && qLimit > 0 ? Math.min(qLimit, 50) : 2;
+
+  if (Array.isArray(body)) return { [entity]: body, total: body.length, generated: true };
+
+  if (body && typeof body === 'object') {
+    const obj = body as Record<string, unknown>;
+    const existingList = obj[entity];
+    if (Array.isArray(existingList)) {
+      return { ...obj, total: typeof obj.total === 'number' ? obj.total : existingList.length, generated: true };
+    }
+
+    const rows = Array.from({ length: limit }, (_v, i) => {
+      const seed = `${entity}:${i + 1}`;
+      const ident = syntheticIdentity(seed);
+      return {
+        ...obj,
+        id: typeof obj.id === 'number' ? i + 1 : (obj.id ?? i + 1),
+        name: typeof obj.name === 'string' ? obj.name : ident.fullName,
+        email: typeof obj.email === 'string' ? obj.email : ident.email,
+      };
+    });
+    return { [entity]: rows, total: rows.length, generated: true };
+  }
+
+  return {
+    [entity]: Array.from({ length: limit }, (_v, i) => ({ id: i + 1 })),
+    total: limit,
+    generated: true,
+  };
+}
+
 function synthesizeFallbackBody(input: AiGenerateInput, signature: string): unknown {
   const segments = input.path.split("/").filter(Boolean);
   const last = segments[segments.length - 1];
@@ -481,7 +521,8 @@ export async function generateMockResponse(input: AiGenerateInput, config: AppCo
       providerOptions: config.aiSeed !== undefined ? { openai: { seed: config.aiSeed } } : undefined,
     });
 
-    const body = result.output?.body ?? parseJsonObject(result.text);
+    const rawBody = result.output?.body ?? parseJsonObject(result.text);
+    const body = normalizeCollectionBody(input, rawBody);
 
     return {
       requestSignature: {

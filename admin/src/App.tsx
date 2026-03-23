@@ -114,6 +114,14 @@ export function App() {
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    const models = providerInfo.providers?.[providerName]?.models ?? [];
+    if (models.length === 0) return;
+    if (!models.includes(providerModel)) {
+      setProviderModel(models[0]);
+    }
+  }, [providerInfo, providerName, providerModel]);
+
   const stats = useMemo(() => {
     const totalVariants = endpoints.reduce((acc, e) => acc + e.variants, 0);
     return { endpoints: endpoints.length, variants: totalVariants, misses: misses.length, requests: requests.length };
@@ -800,25 +808,14 @@ export function App() {
                   <div>
                     <p className="mb-1 text-xs text-zinc-400">Model</p>
                     <select
-                      value={(providerInfo.providers?.[providerName]?.models ?? []).includes(providerModel) ? providerModel : '__custom__'}
-                      onChange={(e) => {
-                        if (e.target.value !== '__custom__') setProviderModel(e.target.value);
-                      }}
+                      value={providerModel}
+                      onChange={(e) => setProviderModel(e.target.value)}
                       className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs"
                     >
                       {(providerInfo.providers?.[providerName]?.models ?? []).map((m) => (
                         <option key={m} value={m}>{m}</option>
                       ))}
-                      <option value="__custom__">Custom model…</option>
                     </select>
-                    {((providerInfo.providers?.[providerName]?.models ?? []).length === 0 || !(providerInfo.providers?.[providerName]?.models ?? []).includes(providerModel)) ? (
-                      <input
-                        value={providerModel}
-                        onChange={(e) => setProviderModel(e.target.value)}
-                        placeholder="Enter model id"
-                        className="mt-2 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs"
-                      />
-                    ) : null}
                   </div>
                 </div>
 

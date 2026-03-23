@@ -1,4 +1,5 @@
-import { generateText } from "ai";
+import { generateText, Output } from "ai";
+import { z } from "zod";
 import { openai, createOpenAI } from "@ai-sdk/openai";
 import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
@@ -472,10 +473,15 @@ export async function generateMockResponse(input: AiGenerateInput, config: AppCo
       model,
       prompt,
       maxOutputTokens: 1200,
+      experimental_output: Output.object({
+        schema: z.object({
+          body: z.record(z.string(), z.any()),
+        }),
+      }),
       providerOptions: config.aiSeed !== undefined ? { openai: { seed: config.aiSeed } } : undefined,
     });
 
-    const body = parseJsonObject(result.text);
+    const body = result.output?.body ?? parseJsonObject(result.text);
 
     return {
       requestSignature: {

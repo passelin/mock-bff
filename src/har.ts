@@ -60,6 +60,11 @@ function maybeJson(text?: string): unknown {
   }
 }
 
+function globToRegExp(glob: string): RegExp {
+  const escaped = glob.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`, "i");
+}
+
 export function isApiLikeRequest(args: {
   method: string;
   pathname: string;
@@ -83,6 +88,8 @@ export function isApiLikeRequest(args: {
   }
 
   if (args.config.har.pathDenylist.some((p) => pathname.includes(p.toLowerCase()))) return false;
+
+  if (args.config.har.ignorePatterns.some((g) => globToRegExp(g).test(pathname))) return false;
 
   if (requireJson && !mime.includes("application/json")) return false;
 

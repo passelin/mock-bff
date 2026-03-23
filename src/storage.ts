@@ -18,6 +18,7 @@ const DEFAULT_CONFIG: AppConfig = {
     requireJsonResponse: true,
     pathAllowlist: [],
     pathDenylist: [],
+    ignorePatterns: [],
     excludeExtensions: [
       ".js", ".css", ".map", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".eot", ".pdf",
     ],

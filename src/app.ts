@@ -163,7 +163,15 @@ export async function createApp(options: CreateAppOptions) {
 
   app.patch<{ Body: Record<string, unknown> }>("/-/api/config", async (req) => {
     const prev = await storage.readConfig();
-    const next = { ...prev, ...req.body };
+    const patch = req.body as Record<string, unknown>;
+    const next = {
+      ...prev,
+      ...patch,
+      har: {
+        ...prev.har,
+        ...(typeof patch.har === 'object' && patch.har ? (patch.har as Record<string, unknown>) : {}),
+      },
+    };
     await storage.writeConfig(next);
     return next;
   });

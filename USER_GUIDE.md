@@ -86,10 +86,13 @@ mock-bff --provider none
 - `aiModel`: provider model string
 - `aiStorePrompt`: store prompt with generated variants (default false)
 - `openApiMode`: `off | assist | strict`
-- `har.*`: import filtering controls
+- `har.*`: import/runtime filtering controls
+  - includes `har.ignorePatterns` (e.g. `/.well-known/*`)
+- `aiPromptTemplate`: optional template editable in Admin Settings
 
 ## 8) Troubleshooting
 
 - 404 for `/favicon.ico` and other assets is expected (non-API requests are rejected)
 - If endpoint exists but app misses, verify request method/path/query/body signature
 - If browser downloads unexpectedly, ensure stale transport headers are not persisted (handled by current ingest/replay sanitization)
+ persisted (handled by current ingest/replay sanitization)

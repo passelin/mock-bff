@@ -59,6 +59,7 @@ export function App() {
   const [requests, setRequests] = useState<ReqLog[]>([]);
   const [misses, setMisses] = useState<any[]>([]);
   const [configText, setConfigText] = useState('');
+  const [promptTemplate, setPromptTemplate] = useState('');
   const [context, setContext] = useState('');
 
   const [selectedMethod, setSelectedMethod] = useState('');
@@ -162,7 +163,9 @@ export function App() {
     showToast('Misses cleared');
   }
   async function loadConfig() {
-    setConfigText(JSON.stringify(await (await fetch('/-/api/config')).json(), null, 2));
+    const cfg = await (await fetch('/-/api/config')).json();
+    setConfigText(JSON.stringify(cfg, null, 2));
+    setPromptTemplate(cfg.aiPromptTemplate ?? '');
   }
   async function loadContext() {
     const d = await (await fetch('/-/api/context')).json();
@@ -380,6 +383,7 @@ export function App() {
     setBusy(true);
     try {
       const parsed = JSON.parse(configText);
+      parsed.aiPromptTemplate = promptTemplate;
       await fetch('/-/api/config', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
@@ -742,6 +746,17 @@ export function App() {
                   <input type="checkbox" checked={getAiStorePrompt()} onChange={(e) => setAiStorePrompt(e.target.checked)} />
                   Store AI generation prompt with saved generated variants (off by default)
                 </label>
+
+                <div className="mb-3">
+                  <p className="mb-1 text-xs text-zinc-400">AI Prompt Template (optional)</p>
+                  <textarea
+                    value={promptTemplate}
+                    onChange={(e) => setPromptTemplate(e.target.value)}
+                    placeholder={"Use placeholders like {{method}}, {{path}}, {{query_json}}, {{body_json}}, {{headers_json}}, {{context}}, {{similar_examples_json}}, {{datetime_iso}}, {{date}}"}
+                    className="h-36 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs"
+                  />
+                </div>
+
                 <textarea value={configText} onChange={(e) => setConfigText(e.target.value)} className="h-80 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />
                 {configError ? <p className="mt-2 text-xs text-rose-400">{configError}</p> : <p className="mt-2 text-xs text-emerald-400">JSON valid</p>}
               </Card>

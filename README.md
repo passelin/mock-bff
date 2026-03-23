@@ -99,6 +99,12 @@ mock-bff --provider none
 - Review/edit variants
 - Clear single/all endpoints (with confirmation)
 
+## Config highlights
+
+- `har.ignorePatterns`: glob-like path patterns to skip (example: `/.well-known/*`)
+- `aiPromptTemplate`: optional prompt template with placeholders:
+  - `{{method}}`, `{{path}}`, `{{query_json}}`, `{{body_json}}`, `{{headers_json}}`, `{{context}}`, `{{similar_examples_json}}`, `{{datetime_iso}}`, `{{date}}`
+
 ## API endpoints
 
 - `POST /-/api/har`

@@ -230,6 +230,18 @@ describe("mock bff", () => {
     await app.close();
   });
 
+  it("supports har.ignorePatterns filtering at runtime", async () => {
+    const { app } = await makeApp();
+
+    await app.inject({ method: "PATCH", url: "/-/api/config", payload: { har: { ignorePatterns: ["/.well-known/*"] } } });
+
+    const res = await app.inject({ method: "GET", url: "/.well-known/openid-configuration" });
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error).toContain("Non-API request");
+
+    await app.close();
+  });
+
   it("ignores legacy /admin/* paths and does not add misses", async () => {
     const { app } = await makeApp();
 

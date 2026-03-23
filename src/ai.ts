@@ -371,6 +371,44 @@ function parseJsonObject(text: string): unknown {
   }
 }
 
+function buildDefaultPrompt(input: AiGenerateInput, now: Date): string {
+  return [
+    "You generate realistic mock API response bodies.",
+    "Return ONLY a valid JSON object (no markdown, no prose).",
+    `Current datetime (ISO): ${now.toISOString()}`,
+    `Current date (YYYY-MM-DD): ${now.toISOString().slice(0, 10)}`,
+    `Endpoint: ${input.method} ${input.path}`,
+    `Query: ${JSON.stringify(input.query)}`,
+    `Request body: ${JSON.stringify(input.body)}`,
+    `Request headers: ${JSON.stringify(input.requestHeaders ?? {})}`,
+    `Context (truncated): ${input.context.slice(-4000)}`,
+    `Similar request examples (replicate structure when relevant): ${JSON.stringify(input.nearbyExamples.slice(0, 6))}`,
+  ].join("\n\n");
+}
+
+function renderPromptTemplate(template: string, input: AiGenerateInput, now: Date): string {
+  const map: Record<string, string> = {
+    datetime_iso: now.toISOString(),
+    date: now.toISOString().slice(0, 10),
+    method: input.method,
+    path: input.path,
+    query_json: JSON.stringify(input.query),
+    body_json: JSON.stringify(input.body),
+    headers_json: JSON.stringify(input.requestHeaders ?? {}),
+    context: input.context.slice(-4000),
+    similar_examples_json: JSON.stringify(input.nearbyExamples.slice(0, 6)),
+  };
+
+  return template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, key) => map[key] ?? "");
+}
+
+function buildPrompt(input: AiGenerateInput, config: AppConfig, now: Date): string {
+  if (config.aiPromptTemplate && config.aiPromptTemplate.trim()) {
+    return renderPromptTemplate(config.aiPromptTemplate, input, now);
+  }
+  return buildDefaultPrompt(input, now);
+}
+
 function selectModel(provider: string, model: string) {
   if (provider === "openai") {
     const baseURL = process.env.OPENAI_BASE_URL;
@@ -406,18 +444,7 @@ export async function generateMockResponse(input: AiGenerateInput, config: AppCo
   const provider = process.env.MOCK_AI_PROVIDER ?? config.aiProvider ?? "openai";
 
   const now = new Date();
-  const prompt = [
-    "You generate realistic mock API response bodies.",
-    "Return ONLY a valid JSON object (no markdown, no prose).",
-    `Current datetime (ISO): ${now.toISOString()}`,
-    `Current date (YYYY-MM-DD): ${now.toISOString().slice(0, 10)}`,
-    `Endpoint: ${input.method} ${input.path}`,
-    `Query: ${JSON.stringify(input.query)}`,
-    `Request body: ${JSON.stringify(input.body)}`,
-    `Request headers: ${JSON.stringify(input.requestHeaders ?? {})}`,
-    `Context (truncated): ${input.context.slice(-4000)}`,
-    `Similar request examples (replicate structure when relevant): ${JSON.stringify(input.nearbyExamples.slice(0, 6))}`,
-  ].join("\n\n");
+  const prompt = buildPrompt(input, config, now);
 
   if (provider === "none") return fallbackResponse(input, config, prompt);
 

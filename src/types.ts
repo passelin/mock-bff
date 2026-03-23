@@ -16,8 +16,10 @@ export interface AppConfig {
     requireJsonResponse: boolean;
     pathAllowlist: string[];
     pathDenylist: string[];
+    ignorePatterns: string[];
     excludeExtensions: string[];
   };
+  aiPromptTemplate?: string;
 }
 
 export interface RequestSignature {

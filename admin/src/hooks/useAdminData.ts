@@ -20,6 +20,7 @@ export function useAdminData(defaultPromptTemplate: string) {
   const [promptDialog, setPromptDialog] = useState<string | null>(null);
   const [harFile, setHarFile] = useState<File | null>(null);
   const [openApiFile, setOpenApiFile] = useState<File | null>(null);
+  const [openApiDoc, setOpenApiDoc] = useState<{ exists: boolean; format?: string; raw?: string }>({ exists: false });
 
   function showToast(msg: string) {
     setToast(msg);
@@ -27,7 +28,9 @@ export function useAdminData(defaultPromptTemplate: string) {
   }
 
   async function loadEndpoints() {
-    setEndpoints(await (await fetch("/-/api/endpoints")).json());
+    const rows = (await (await fetch("/-/api/endpoints")).json()) as Endpoint[];
+    rows.sort((a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method));
+    setEndpoints(rows);
   }
   async function loadRequests() {
     const data = await (await fetch("/-/api/requests?limit=100")).json();
@@ -56,8 +59,13 @@ export function useAdminData(defaultPromptTemplate: string) {
     setContext(d.context || "");
   }
 
+  async function loadOpenApiDoc() {
+    const d = await (await fetch('/-/api/openapi')).json();
+    setOpenApiDoc(d ?? { exists: false });
+  }
+
   async function refresh() {
-    await Promise.all([loadEndpoints(), loadRequests(), loadMisses(), loadConfig(), loadProviders(), loadContext()]);
+    await Promise.all([loadEndpoints(), loadRequests(), loadMisses(), loadConfig(), loadProviders(), loadContext(), loadOpenApiDoc()]);
   }
 
   useEffect(() => {
@@ -88,16 +96,12 @@ export function useAdminData(defaultPromptTemplate: string) {
   }, [configText]);
 
   async function clearLogs() {
-    const ok = window.confirm("Clear all request logs?");
-    if (!ok) return;
     await fetch("/-/api/requests", { method: "DELETE" });
     await loadRequests();
     showToast("Request logs cleared");
   }
 
   async function clearMisses() {
-    const ok = window.confirm("Clear all misses?");
-    if (!ok) return;
     await fetch("/-/api/misses", { method: "DELETE" });
     await loadMisses();
     showToast("Misses cleared");
@@ -190,9 +194,9 @@ export function useAdminData(defaultPromptTemplate: string) {
     toast, showToast,
     busy, setBusy,
     promptDialog, setPromptDialog,
-    harFile, setHarFile, openApiFile, setOpenApiFile,
+    harFile, setHarFile, openApiFile, setOpenApiFile, openApiDoc,
     stats, configError,
-    refresh, loadEndpoints, loadRequests, loadMisses, loadConfig, loadProviders, loadContext,
+    refresh, loadEndpoints, loadRequests, loadMisses, loadConfig, loadProviders, loadContext, loadOpenApiDoc,
     clearLogs, clearMisses, uploadFile, setAiStorePrompt, getAiStorePrompt, saveConfig, saveContext,
   };
 }

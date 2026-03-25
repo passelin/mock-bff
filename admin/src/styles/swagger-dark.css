@@ -1,0 +1,125 @@
+/* Scoped dark theme overrides for swagger-ui inside .swagger-dark */
+.swagger-dark {
+  background: #09090b;
+  border-radius: 0.9rem;
+}
+
+.swagger-dark .swagger-ui {
+  color: #e4e4e7;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+.swagger-dark .swagger-ui .wrapper {
+  padding: 14px 14px 18px;
+}
+
+.swagger-dark .swagger-ui,
+.swagger-dark .swagger-ui .info,
+.swagger-dark .swagger-ui .scheme-container,
+.swagger-dark .swagger-ui .opblock,
+.swagger-dark .swagger-ui .responses-inner,
+.swagger-dark .swagger-ui .opblock-section-header,
+.swagger-dark .swagger-ui table,
+.swagger-dark .swagger-ui .model-box,
+.swagger-dark .swagger-ui .dialog-ux {
+  background: #09090b !important;
+  color: #e4e4e7 !important;
+}
+
+.swagger-dark .swagger-ui .scheme-container {
+  box-shadow: none !important;
+  border: 1px solid #27272a !important;
+  border-radius: 10px;
+}
+
+.swagger-dark .swagger-ui .info {
+  margin: 0 0 12px;
+}
+
+.swagger-dark .swagger-ui .info .title {
+  color: #f4f4f5 !important;
+}
+
+.swagger-dark .swagger-ui a,
+.swagger-dark .swagger-ui .opblock-summary-path,
+.swagger-dark .swagger-ui .link {
+  color: #93c5fd !important;
+}
+
+.swagger-dark .swagger-ui .topbar {
+  display: none;
+}
+
+.swagger-dark .swagger-ui .opblock {
+  border: 1px solid #27272a !important;
+  border-radius: 10px !important;
+  margin: 0 0 10px;
+}
+
+.swagger-dark .swagger-ui .opblock .opblock-summary {
+  border-bottom-color: #27272a !important;
+}
+
+.swagger-dark .swagger-ui .opblock-tag {
+  color: #f4f4f5 !important;
+  border-bottom-color: #27272a !important;
+}
+
+.swagger-dark .swagger-ui .opblock-summary-description,
+.swagger-dark .swagger-ui .response-col_status,
+.swagger-dark .swagger-ui .response-col_description,
+.swagger-dark .swagger-ui .model-title,
+.swagger-dark .swagger-ui .parameter__name,
+.swagger-dark .swagger-ui .tab li,
+.swagger-dark .swagger-ui label,
+.swagger-dark .swagger-ui p,
+.swagger-dark .swagger-ui h1,
+.swagger-dark .swagger-ui h2,
+.swagger-dark .swagger-ui h3,
+.swagger-dark .swagger-ui h4,
+.swagger-dark .swagger-ui h5,
+.swagger-dark .swagger-ui td,
+.swagger-dark .swagger-ui th {
+  color: #e4e4e7 !important;
+}
+
+/* Keep Swagger version/OAS pills readable and colored */
+.swagger-dark .swagger-ui .info .title small,
+.swagger-dark .swagger-ui .info .title small pre {
+  color: #ffffff !important;
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+}
+
+.swagger-dark .swagger-ui .info .title small.version-stamp {
+  background: #7c3aed !important;
+  border-color: #7c3aed !important;
+}
+
+.swagger-dark .swagger-ui input,
+.swagger-dark .swagger-ui select,
+.swagger-dark .swagger-ui textarea {
+  background: #111827 !important;
+  color: #e4e4e7 !important;
+  border-color: #3f3f46 !important;
+}
+
+.swagger-dark .swagger-ui .btn {
+  color: #e4e4e7 !important;
+  border-color: #52525b !important;
+  background: #18181b !important;
+}
+
+.swagger-dark .swagger-ui .btn.execute {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+  color: white !important;
+}
+
+.swagger-dark .swagger-ui .highlight-code,
+.swagger-dark .swagger-ui pre,
+.swagger-dark .swagger-ui code,
+.swagger-dark .swagger-ui .microlight {
+  background: #0f172a !important;
+  color: #e4e4e7 !important;
+}

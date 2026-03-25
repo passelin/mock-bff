@@ -225,41 +225,7 @@ function selectModel(provider: string, model: string, config: AppConfig) {
       config.providerBaseUrls?.ollama ??
       "http://127.0.0.1:11434";
 
-    const loggingFetch: typeof fetch = async (inputReq, init) => {
-      const url =
-        typeof inputReq === "string"
-          ? inputReq
-          : inputReq instanceof URL
-            ? inputReq.toString()
-            : inputReq.url;
-      const method =
-        init?.method ??
-        (typeof inputReq === "object" && "method" in inputReq
-          ? (inputReq as Request).method
-          : "GET");
-      const bodyRaw = init?.body;
-      const bodyPreview =
-        typeof bodyRaw === "string"
-          ? bodyRaw
-          : bodyRaw
-            ? "[non-string body]"
-            : "";
-
-      process.stderr.write(
-        `${JSON.stringify({
-          level: "info",
-          ts: new Date().toISOString(),
-          kind: "mock-bff-ollama-http",
-          method,
-          url,
-          bodyPreview,
-        })}\n`,
-      );
-
-      return fetch(inputReq as any, init as any);
-    };
-
-    return createOllama({ baseURL, fetch: loggingFetch })(model);
+    return createOllama({ baseURL })(model);
   }
 
   return openai(model);

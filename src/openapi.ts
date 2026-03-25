@@ -7,8 +7,14 @@ export interface OpenApiValidationResult {
   errors: string[];
 }
 
+interface OpenApiOperation {
+  summary?: string;
+  description?: string;
+  responses?: Record<string, { content?: Record<string, { schema?: unknown }> }>;
+}
+
 interface OpenApiDoc {
-  paths?: Record<string, Record<string, { responses?: Record<string, { content?: Record<string, { schema?: unknown }> }> }>>;
+  paths?: Record<string, Record<string, OpenApiOperation>>;
   components?: {
     schemas?: Record<string, unknown>;
   };
@@ -71,7 +77,7 @@ function normalizePath(pathname: string): string {
   return pathname.endsWith("/") && pathname !== "/" ? pathname.slice(0, -1) : pathname;
 }
 
-function findPathKey(doc: OpenApiDoc, runtimePath: string): string | undefined {
+export function findPathKey(doc: OpenApiDoc, runtimePath: string): string | undefined {
   if (!doc.paths) return undefined;
   const target = normalizePath(runtimePath);
   for (const key of Object.keys(doc.paths)) {
@@ -79,6 +85,35 @@ function findPathKey(doc: OpenApiDoc, runtimePath: string): string | undefined {
     if (re.test(target)) return key;
   }
   return undefined;
+}
+
+export function buildOpenApiHint(args: {
+  doc?: OpenApiDoc;
+  method: string;
+  path: string;
+}): string | undefined {
+  if (!args.doc?.paths) return undefined;
+  const matchedPath = findPathKey(args.doc, args.path);
+  if (!matchedPath) return undefined;
+  const methodDef = args.doc.paths[matchedPath]?.[args.method.toLowerCase()];
+  if (!methodDef) return undefined;
+
+  const schema =
+    methodDef.responses?.["200"]?.content?.["application/json"]?.schema ??
+    methodDef.responses?.["201"]?.content?.["application/json"]?.schema ??
+    methodDef.responses?.default?.content?.["application/json"]?.schema;
+
+  const resolved = schema ? resolveRefs(schema, args.doc) : undefined;
+  const schemaPreview = resolved ? JSON.stringify(resolved).slice(0, 3000) : "";
+
+  return [
+    `OpenAPI matched path: ${matchedPath}`,
+    methodDef.summary ? `OpenAPI summary: ${methodDef.summary}` : "",
+    methodDef.description ? `OpenAPI description: ${methodDef.description}` : "",
+    schemaPreview ? `OpenAPI response schema (application/json): ${schemaPreview}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function validateResponseWithOpenApi(args: {

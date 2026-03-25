@@ -1,24 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Gauge,
-  ListTree,
-  Logs,
-  Menu,
-  RefreshCcw,
-  Route as RouteIcon,
-  Settings,
-  Sparkles,
-  Trash2,
-  X,
-} from "lucide-react";
+import { FileJson, Gauge, ListTree, Logs, Menu, Route as RouteIcon, Settings, Sparkles, X } from "lucide-react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { Card } from "./components/Card";
 import { Tab } from "./components/Tab";
 import { PromptDialog } from "./components/PromptDialog";
+import { ConfirmDialog } from "./components/ConfirmDialog";
 import { EndpointsPage } from "./pages/EndpointsPage";
 import { LogsPage } from "./pages/LogsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { VariantsPage } from "./pages/VariantsPage";
+import { OpenApiPage } from "./pages/OpenApiPage";
 import { useAdminData } from "./hooks/useAdminData";
 import type { VariantMeta } from "./types";
 
@@ -145,6 +137,8 @@ export function App() {
     saveContext,
     loadConfig,
     loadContext,
+    openApiDoc,
+    loadOpenApiDoc,
   } = data;
 
   const location = useLocation();
@@ -160,9 +154,16 @@ export function App() {
   const [createStatus, setCreateStatus] = useState(200);
   const [createBody, setCreateBody] = useState('{\n  "ok": true\n}');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [editorSplit, setEditorSplit] = useState(40);
+  const editorSplit = 40;
   const [endpointSearch, setEndpointSearch] = useState("");
   const [selectedEndpointKeys, setSelectedEndpointKeys] = useState<Record<string, boolean>>({});
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean;
+    title?: string;
+    message: string;
+    confirmLabel?: string;
+    resolve?: (v: boolean) => void;
+  }>({ open: false, message: "" });
 
   const filteredEndpoints = useMemo(() => {
     const q = endpointSearch.trim().toLowerCase();
@@ -206,13 +207,23 @@ export function App() {
       Promise.all([loadRequests(), loadMisses()]);
       return;
     }
+    if (path === "/openapi") {
+      loadOpenApiDoc();
+      return;
+    }
     if (path === "/settings") {
       Promise.all([loadConfig(), loadProviders(), loadContext()]);
     }
   }, [location.pathname]);
 
+  function confirmAction(message: string, title?: string, confirmLabel?: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      setConfirmState({ open: true, title, message, confirmLabel, resolve });
+    });
+  }
+
   async function clearEndpoint(method: string, path: string) {
-    const ok = window.confirm(`Clear endpoint ${method} ${path}? This removes all its variants.`);
+    const ok = await confirmAction(`Clear endpoint ${method} ${path}? This removes all its variants.`, "Delete endpoint", "Delete");
     if (!ok) return;
     setBusy(true);
     try {
@@ -250,7 +261,7 @@ export function App() {
   async function clearSelectedEndpoints() {
     const selected = filteredEndpoints.filter((ep) => selectedEndpointKeys[`${ep.method} ${ep.path}`]);
     if (selected.length === 0) return showToast("No endpoints selected");
-    const ok = window.confirm(`Delete ${selected.length} selected endpoint(s) and all their variants?`);
+    const ok = await confirmAction(`Delete ${selected.length} selected endpoint(s) and all their variants?`, "Delete selected endpoints", "Delete");
     if (!ok) return;
     setBusy(true);
     try {
@@ -300,7 +311,7 @@ export function App() {
   async function deleteVariant(id: string) {
     if (!selectedMethod || !selectedPath) return;
     if (variantList.length <= 1) return showToast("Cannot delete the last variant. Delete the endpoint instead.");
-    const ok = window.confirm(`Delete variant ${id} for ${selectedMethod} ${selectedPath}?`);
+    const ok = await confirmAction(`Delete variant ${id} for ${selectedMethod} ${selectedPath}?`, "Delete variant", "Delete");
     if (!ok) return;
     setBusy(true);
     try {
@@ -340,6 +351,18 @@ export function App() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function clearLogsWithConfirm() {
+    const ok = await confirmAction("Clear all request logs?", "Clear request logs", "Clear");
+    if (!ok) return;
+    await clearLogs();
+  }
+
+  async function clearMissesWithConfirm() {
+    const ok = await confirmAction("Clear all misses?", "Clear misses", "Clear");
+    if (!ok) return;
+    await clearMisses();
   }
 
   async function createVariant() {
@@ -390,6 +413,7 @@ export function App() {
             <Tab to="/endpoints" label="Endpoints" icon={<ListTree className="h-4 w-4" />} />
             <Tab to="/variants" label="Variants" icon={<RouteIcon className="h-4 w-4" />} />
             <Tab to="/logs" label="Logs" icon={<Logs className="h-4 w-4" />} />
+            <Tab to="/openapi" label="OpenAPI" icon={<FileJson className="h-4 w-4" />} />
             <Tab to="/settings" label="Settings" icon={<Settings className="h-4 w-4" />} />
           </nav>
         </div>
@@ -404,6 +428,7 @@ export function App() {
               <Tab to="/endpoints" label="Endpoints" icon={<ListTree className="h-4 w-4" />} onClick={() => setMobileMenuOpen(false)} />
               <Tab to="/variants" label="Variants" icon={<RouteIcon className="h-4 w-4" />} onClick={() => setMobileMenuOpen(false)} />
               <Tab to="/logs" label="Logs" icon={<Logs className="h-4 w-4" />} onClick={() => setMobileMenuOpen(false)} />
+              <Tab to="/openapi" label="OpenAPI" icon={<FileJson className="h-4 w-4" />} onClick={() => setMobileMenuOpen(false)} />
               <Tab to="/settings" label="Settings" icon={<Settings className="h-4 w-4" />} onClick={() => setMobileMenuOpen(false)} />
             </div>
           </aside>
@@ -417,64 +442,64 @@ export function App() {
           <Route
             path="/variants"
             element={
-              <>
-                <Card title="Create endpoint / variant" subtitle="Manually add new endpoints and variants directly from the UI." actions={<button onClick={createVariant} disabled={busy || !createPath.trim()} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Create</button>}>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
-                    <select value={createMethod} onChange={(e) => setCreateMethod(e.target.value)} className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select>
-                    <input value={createPath} onChange={(e) => setCreatePath(e.target.value)} placeholder="/api/new-endpoint" className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm" />
-                    <input value={createVariantId} onChange={(e) => setCreateVariantId(e.target.value)} placeholder="variant id" className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm" />
-                    <input type="number" value={createStatus} onChange={(e) => setCreateStatus(Number(e.target.value))} className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm" />
-                  </div>
-                  <textarea value={createBody} onChange={(e) => setCreateBody(e.target.value)} className="h-40 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />
-                </Card>
-                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-                  <div className="xl:col-span-4 space-y-3">
-                    <Card title="Endpoints" subtitle="Pick endpoint to load variants." actions={<div className="flex items-center gap-2"><button onClick={loadEndpoints} className="rounded-xl border border-zinc-700 p-2 text-xs inline-flex items-center"><RefreshCcw className="h-3.5 w-3.5" /></button><button onClick={clearSelectedEndpoints} disabled={busy || filteredEndpoints.filter((ep) => selectedEndpointKeys[`${ep.method} ${ep.path}`]).length === 0} className="rounded-xl border border-rose-700 text-rose-300 px-3 py-2 text-xs hover:bg-rose-900/30 disabled:opacity-50">Delete</button></div>}>
-                      <div className="mb-3 flex items-center gap-2"><input type="checkbox" checked={allFilteredSelected} onChange={(e) => setAllFilteredSelection(e.target.checked)} /><span className="text-xs text-zinc-400">Select / deselect all shown</span></div>
-                      <input value={endpointSearch} onChange={(e) => setEndpointSearch(e.target.value)} placeholder="Search endpoints..." className="mb-3 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs" />
-                      <div className="max-h-[28rem] overflow-auto space-y-2">
-                        {filteredEndpoints.map((ep, i) => (
-                          <div key={ep.method + ep.path + i} className={`w-full rounded-lg border px-3 py-2 ${selectedMethod === ep.method && selectedPath === ep.path ? "border-brand-500 bg-brand-500/10" : "border-zinc-700 hover:bg-zinc-800"}`}>
-                            <div className="flex items-center justify-between gap-2">
-                              <input type="checkbox" checked={Boolean(selectedEndpointKeys[`${ep.method} ${ep.path}`])} onChange={(e) => toggleEndpointSelection(ep.method, ep.path, e.target.checked)} className="shrink-0" />
-                              <button onClick={() => loadVariants(ep.method, ep.path)} className="flex-1 text-left"><div className="font-mono text-xs text-brand-300">{ep.method}</div><div className="font-mono text-xs break-all mt-1">{ep.path}</div></button>
-                              <button onClick={() => clearEndpoint(ep.method, ep.path)} className="self-center rounded p-1.5 text-rose-300 hover:bg-rose-900/30 shrink-0" aria-label="Delete endpoint"><Trash2 className="h-4 w-4" /></button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </Card>
-                  </div>
-                  <div className="xl:col-span-8 space-y-3">
-                    <div className="flex items-center gap-3"><span className="text-xs text-zinc-400">Pane split</span><input type="range" min={25} max={65} value={editorSplit} onChange={(e) => setEditorSplit(Number(e.target.value))} className="w-56" /><span className="text-xs text-zinc-500">{editorSplit}% / {100 - editorSplit}%</span></div>
-                    <div className="grid gap-6" style={{ gridTemplateColumns: `minmax(0, ${editorSplit}fr) minmax(0, ${100 - editorSplit}fr)` }}>
-                      <Card title="Variants" subtitle={selectedMethod && selectedPath ? `Endpoint: ${selectedMethod} ${selectedPath}` : "Select an endpoint from the left list first."}>
-                        <div className="space-y-2 max-h-80 overflow-auto">
-                          {variantList.map((v) => (
-                            <div key={v.id} className={`w-full rounded-lg border px-3 py-2 transition ${selectedVariantId === v.id ? "border-brand-500 bg-brand-500/10" : "border-zinc-700 hover:bg-zinc-800"}`}>
-                              <div className="flex items-start justify-between gap-2">
-                                <button onClick={() => selectVariant(v.id)} className="flex-1 text-left"><div className="font-mono text-xs" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", textOverflow: "ellipsis" }} title={v.displayLabel || v.id}>{v.displayLabel || v.id}</div><div className="text-xs text-zinc-400 mt-1">{v.source} · status {v.status}</div></button>
-                                <button onClick={() => deleteVariant(v.id)} disabled={variantList.length <= 1} className="self-center rounded p-1.5 text-rose-300 hover:bg-rose-900/30 shrink-0 disabled:opacity-40"><Trash2 className="h-4 w-4" /></button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </Card>
-                      <Card title="Variant Editor" subtitle={selectedVariantId || "Select a variant to edit"} actions={<div className="flex gap-2"><button onClick={() => { try { setVariantEditor(JSON.stringify(JSON.parse(variantEditor), null, 2)); } catch {} }} disabled={!selectedVariantId} className="rounded-xl border border-zinc-700 px-3 py-2 text-xs">Format</button><button onClick={saveVariant} disabled={busy || !selectedVariantId || !!variantError} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Save variant</button></div>}>
-                        <textarea value={variantEditor} onChange={(e) => setVariantEditor(e.target.value)} className="h-80 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />
-                        {variantError ? <p className="mt-2 text-xs text-rose-400">{variantError}</p> : selectedVariantId ? <p className="mt-2 text-xs text-emerald-400">JSON valid</p> : null}
-                      </Card>
-                    </div>
-                  </div>
-                </div>
-              </>
+              <VariantsPage
+                busy={busy}
+                createMethod={createMethod}
+                setCreateMethod={setCreateMethod}
+                createPath={createPath}
+                setCreatePath={setCreatePath}
+                createVariantId={createVariantId}
+                setCreateVariantId={setCreateVariantId}
+                createStatus={createStatus}
+                setCreateStatus={setCreateStatus}
+                createBody={createBody}
+                setCreateBody={setCreateBody}
+                createVariant={createVariant}
+                filteredEndpoints={filteredEndpoints}
+                endpointSearch={endpointSearch}
+                setEndpointSearch={setEndpointSearch}
+                allFilteredSelected={allFilteredSelected}
+                setAllFilteredSelection={setAllFilteredSelection}
+                selectedEndpointKeys={selectedEndpointKeys}
+                toggleEndpointSelection={toggleEndpointSelection}
+                selectedMethod={selectedMethod}
+                selectedPath={selectedPath}
+                loadVariants={loadVariants}
+                loadEndpoints={loadEndpoints}
+                clearSelectedEndpoints={clearSelectedEndpoints}
+                clearEndpoint={clearEndpoint}
+                editorSplit={editorSplit}
+                variantList={variantList}
+                selectedVariantId={selectedVariantId}
+                selectVariant={selectVariant}
+                deleteVariant={deleteVariant}
+                variantEditor={variantEditor}
+                setVariantEditor={setVariantEditor}
+                saveVariant={saveVariant}
+                variantError={variantError}
+              />
             }
           />
-          <Route path="/logs" element={<LogsPage requests={requests} misses={misses} loadRequests={loadRequests} clearLogs={clearLogs} loadMisses={loadMisses} clearMisses={clearMisses} setPromptDialog={setPromptDialog} />} />
+          <Route path="/logs" element={<LogsPage requests={requests} misses={misses} loadRequests={loadRequests} clearLogs={clearLogsWithConfirm} loadMisses={loadMisses} clearMisses={clearMissesWithConfirm} setPromptDialog={setPromptDialog} />} />
+          <Route path="/openapi" element={<OpenApiPage busy={busy} openApiFile={openApiFile} setOpenApiFile={setOpenApiFile} uploadFile={uploadFile} openApiDoc={openApiDoc} loadOpenApiDoc={loadOpenApiDoc} />} />
           <Route path="/settings" element={<SettingsPage busy={busy} configError={configError} saveConfig={saveConfig} getAiStorePrompt={getAiStorePrompt} setAiStorePrompt={setAiStorePrompt} providerInfo={providerInfo} providerName={providerName} setProviderName={setProviderName} providerModel={providerModel} setProviderModel={setProviderModel} openaiBaseUrl={openaiBaseUrl} setOpenaiBaseUrl={setOpenaiBaseUrl} anthropicBaseUrl={anthropicBaseUrl} setAnthropicBaseUrl={setAnthropicBaseUrl} ollamaBaseUrl={ollamaBaseUrl} setOllamaBaseUrl={setOllamaBaseUrl} loadProviders={loadProviders} showPromptHints={showPromptHints} setShowPromptHints={setShowPromptHints} promptTemplate={promptTemplate} setPromptTemplate={setPromptTemplate} configText={configText} setConfigText={setConfigText} context={context} setContext={setContext} saveContext={saveContext} />} />
         </Routes>
 
         {promptDialog ? <PromptDialog prompt={promptDialog} onClose={() => setPromptDialog(null)} showToast={showToast} /> : null}
+        <ConfirmDialog
+          open={confirmState.open}
+          title={confirmState.title}
+          message={confirmState.message}
+          confirmLabel={confirmState.confirmLabel}
+          onCancel={() => {
+            confirmState.resolve?.(false);
+            setConfirmState({ open: false, message: "" });
+          }}
+          onConfirm={() => {
+            confirmState.resolve?.(true);
+            setConfirmState({ open: false, message: "" });
+          }}
+        />
         {toast ? <div className="fixed bottom-6 right-6 rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2 text-sm shadow-lg">{toast}</div> : null}
       </div>
     </main>

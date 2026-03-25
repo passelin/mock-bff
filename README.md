@@ -1,6 +1,8 @@
 # mock-bff
 
-Mock BFF server for UI modernization.
+<img src="./admin/src/assets/bff_candy_heart.svg" alt="Mock BFF logo" width="180" />
+
+Mock BFF server for UI modernization. Created by Crusty, the OpenClaw agent of Pierre Asselin.
 
 Use HAR recordings + optional OpenAPI contracts to run frontend apps without standing up backend environments.
 
@@ -8,11 +10,10 @@ Use HAR recordings + optional OpenAPI contracts to run frontend apps without sta
 
 - Replay HTTP API responses from HAR
 - Store mocks on filesystem (commit-friendly)
-- Admin UI at `/-/admin` (React + Tailwind)
+- Admin UI at `/-/admin`
 - Variant review/edit workflow
 - Request/miss observability
-- AI fallback generation via Vercel AI SDK (OpenAI provider)
-- OpenAPI assist/strict validation modes
+- AI fallback generation (currently support ollama, OpenAI, and Anthropic)
 
 ## Install
 

@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileJson, Gauge, ListTree, Logs, Menu, Route as RouteIcon, Settings, Sparkles, X } from "lucide-react";
+import {
+  FileJson,
+  Gauge,
+  ListTree,
+  Logs,
+  Menu,
+  Route as RouteIcon,
+  Settings,
+  X,
+} from "lucide-react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { Card } from "./components/Card";
 import { Tab } from "./components/Tab";
@@ -13,6 +22,7 @@ import { VariantsPage } from "./pages/VariantsPage";
 import { OpenApiPage } from "./pages/OpenApiPage";
 import { useAdminData } from "./hooks/useAdminData";
 import type { VariantMeta } from "./types";
+import bffCandyHeartLogo from "./assets/bff_candy_heart.svg";
 
 const DEFAULT_PROMPT_TEMPLATE = `You are an HTTP server for a Single Page Application.
 Read the incoming HTTP request and return the most realistic successful HTTP response for a production-style REST API.
@@ -156,7 +166,9 @@ export function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const editorSplit = 40;
   const [endpointSearch, setEndpointSearch] = useState("");
-  const [selectedEndpointKeys, setSelectedEndpointKeys] = useState<Record<string, boolean>>({});
+  const [selectedEndpointKeys, setSelectedEndpointKeys] = useState<
+    Record<string, boolean>
+  >({});
   const [liveConnected, setLiveConnected] = useState(false);
   const [confirmState, setConfirmState] = useState<{
     open: boolean;
@@ -169,12 +181,16 @@ export function App() {
   const filteredEndpoints = useMemo(() => {
     const q = endpointSearch.trim().toLowerCase();
     if (!q) return endpoints;
-    return endpoints.filter((ep) => `${ep.method} ${ep.path}`.toLowerCase().includes(q));
+    return endpoints.filter((ep) =>
+      `${ep.method} ${ep.path}`.toLowerCase().includes(q),
+    );
   }, [endpoints, endpointSearch]);
 
   const allFilteredSelected =
     filteredEndpoints.length > 0 &&
-    filteredEndpoints.every((ep) => selectedEndpointKeys[`${ep.method} ${ep.path}`]);
+    filteredEndpoints.every(
+      (ep) => selectedEndpointKeys[`${ep.method} ${ep.path}`],
+    );
 
   const variantError = useMemo(() => {
     if (!selectedVariantId) return "";
@@ -258,18 +274,29 @@ export function App() {
     };
   }, [location.pathname, selectedMethod, selectedPath]);
 
-  function confirmAction(message: string, title?: string, confirmLabel?: string): Promise<boolean> {
+  function confirmAction(
+    message: string,
+    title?: string,
+    confirmLabel?: string,
+  ): Promise<boolean> {
     return new Promise((resolve) => {
       setConfirmState({ open: true, title, message, confirmLabel, resolve });
     });
   }
 
   async function clearEndpoint(method: string, path: string) {
-    const ok = await confirmAction(`Clear endpoint ${method} ${path}? This removes all its variants.`, "Delete endpoint", "Delete");
+    const ok = await confirmAction(
+      `Clear endpoint ${method} ${path}? This removes all its variants.`,
+      "Delete endpoint",
+      "Delete",
+    );
     if (!ok) return;
     setBusy(true);
     try {
-      const res = await fetch(`/-/api/endpoint?method=${encodeURIComponent(method)}&path=${encodeURIComponent(path)}`, { method: "DELETE" });
+      const res = await fetch(
+        `/-/api/endpoint?method=${encodeURIComponent(method)}&path=${encodeURIComponent(path)}`,
+        { method: "DELETE" },
+      );
       if (!res.ok) throw new Error("clear failed");
       if (selectedMethod === method && selectedPath === path) {
         setSelectedMethod("");
@@ -287,7 +314,11 @@ export function App() {
     }
   }
 
-  function toggleEndpointSelection(method: string, path: string, checked: boolean) {
+  function toggleEndpointSelection(
+    method: string,
+    path: string,
+    checked: boolean,
+  ) {
     const key = `${method} ${path}`;
     setSelectedEndpointKeys((prev) => ({ ...prev, [key]: checked }));
   }
@@ -295,20 +326,30 @@ export function App() {
   function setAllFilteredSelection(checked: boolean) {
     setSelectedEndpointKeys((prev) => {
       const next = { ...prev };
-      for (const ep of filteredEndpoints) next[`${ep.method} ${ep.path}`] = checked;
+      for (const ep of filteredEndpoints)
+        next[`${ep.method} ${ep.path}`] = checked;
       return next;
     });
   }
 
   async function clearSelectedEndpoints() {
-    const selected = filteredEndpoints.filter((ep) => selectedEndpointKeys[`${ep.method} ${ep.path}`]);
+    const selected = filteredEndpoints.filter(
+      (ep) => selectedEndpointKeys[`${ep.method} ${ep.path}`],
+    );
     if (selected.length === 0) return showToast("No endpoints selected");
-    const ok = await confirmAction(`Delete ${selected.length} selected endpoint(s) and all their variants?`, "Delete selected endpoints", "Delete");
+    const ok = await confirmAction(
+      `Delete ${selected.length} selected endpoint(s) and all their variants?`,
+      "Delete selected endpoints",
+      "Delete",
+    );
     if (!ok) return;
     setBusy(true);
     try {
       for (const ep of selected) {
-        const res = await fetch(`/-/api/endpoint?method=${encodeURIComponent(ep.method)}&path=${encodeURIComponent(ep.path)}`, { method: "DELETE" });
+        const res = await fetch(
+          `/-/api/endpoint?method=${encodeURIComponent(ep.method)}&path=${encodeURIComponent(ep.path)}`,
+          { method: "DELETE" },
+        );
         if (!res.ok) throw new Error("delete failed");
       }
       setSelectedMethod("");
@@ -329,14 +370,22 @@ export function App() {
   async function loadVariants(method: string, path: string) {
     setSelectedMethod(method);
     setSelectedPath(path);
-    const data = await (await fetch(`/-/api/variants?method=${encodeURIComponent(method)}&path=${encodeURIComponent(path)}`)).json();
+    const data = await (
+      await fetch(
+        `/-/api/variants?method=${encodeURIComponent(method)}&path=${encodeURIComponent(path)}`,
+      )
+    ).json();
     const variants = data.variants ?? [];
     setVariantList(variants);
 
     if (variants.length === 1) {
       const onlyId = variants[0].id;
       setSelectedVariantId(onlyId);
-      const one = await (await fetch(`/-/api/variant?method=${encodeURIComponent(method)}&path=${encodeURIComponent(path)}&id=${encodeURIComponent(onlyId)}`)).json();
+      const one = await (
+        await fetch(
+          `/-/api/variant?method=${encodeURIComponent(method)}&path=${encodeURIComponent(path)}&id=${encodeURIComponent(onlyId)}`,
+        )
+      ).json();
       setVariantEditor(JSON.stringify(one.mock, null, 2));
     } else {
       setSelectedVariantId("");
@@ -346,18 +395,32 @@ export function App() {
 
   async function selectVariant(id: string) {
     setSelectedVariantId(id);
-    const data = await (await fetch(`/-/api/variant?method=${encodeURIComponent(selectedMethod)}&path=${encodeURIComponent(selectedPath)}&id=${encodeURIComponent(id)}`)).json();
+    const data = await (
+      await fetch(
+        `/-/api/variant?method=${encodeURIComponent(selectedMethod)}&path=${encodeURIComponent(selectedPath)}&id=${encodeURIComponent(id)}`,
+      )
+    ).json();
     setVariantEditor(JSON.stringify(data.mock, null, 2));
   }
 
   async function deleteVariant(id: string) {
     if (!selectedMethod || !selectedPath) return;
-    if (variantList.length <= 1) return showToast("Cannot delete the last variant. Delete the endpoint instead.");
-    const ok = await confirmAction(`Delete variant ${id} for ${selectedMethod} ${selectedPath}?`, "Delete variant", "Delete");
+    if (variantList.length <= 1)
+      return showToast(
+        "Cannot delete the last variant. Delete the endpoint instead.",
+      );
+    const ok = await confirmAction(
+      `Delete variant ${id} for ${selectedMethod} ${selectedPath}?`,
+      "Delete variant",
+      "Delete",
+    );
     if (!ok) return;
     setBusy(true);
     try {
-      const res = await fetch(`/-/api/variant?method=${encodeURIComponent(selectedMethod)}&path=${encodeURIComponent(selectedPath)}&id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      const res = await fetch(
+        `/-/api/variant?method=${encodeURIComponent(selectedMethod)}&path=${encodeURIComponent(selectedPath)}&id=${encodeURIComponent(id)}`,
+        { method: "DELETE" },
+      );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body?.error || "delete failed");
@@ -383,7 +446,12 @@ export function App() {
       await fetch("/-/api/variant", {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ method: selectedMethod, path: selectedPath, id: selectedVariantId, mock }),
+        body: JSON.stringify({
+          method: selectedMethod,
+          path: selectedPath,
+          id: selectedVariantId,
+          mock,
+        }),
       });
       await loadVariants(selectedMethod, selectedPath);
       await loadEndpoints();
@@ -396,13 +464,21 @@ export function App() {
   }
 
   async function clearLogsWithConfirm() {
-    const ok = await confirmAction("Clear all request logs?", "Clear request logs", "Clear");
+    const ok = await confirmAction(
+      "Clear all request logs?",
+      "Clear request logs",
+      "Clear",
+    );
     if (!ok) return;
     await clearLogs();
   }
 
   async function clearMissesWithConfirm() {
-    const ok = await confirmAction("Clear all misses?", "Clear misses", "Clear");
+    const ok = await confirmAction(
+      "Clear all misses?",
+      "Clear misses",
+      "Clear",
+    );
     if (!ok) return;
     await clearMisses();
   }
@@ -415,10 +491,23 @@ export function App() {
       const path = createPath.startsWith("/") ? createPath : `/${createPath}`;
       const id = createVariantId.trim() || "default_manual";
       const mock = {
-        requestSignature: { method, path, queryHash: "manual", bodyHash: "manual" },
+        requestSignature: {
+          method,
+          path,
+          queryHash: "manual",
+          bodyHash: "manual",
+        },
         requestSnapshot: { query: {}, body: {} },
-        response: { status: Number(createStatus) || 200, headers: { "content-type": "application/json" }, body },
-        meta: { source: "manual", createdAt: new Date().toISOString(), notes: "created-from-admin-ui" },
+        response: {
+          status: Number(createStatus) || 200,
+          headers: { "content-type": "application/json" },
+          body,
+        },
+        meta: {
+          source: "manual",
+          createdAt: new Date().toISOString(),
+          notes: "created-from-admin-ui",
+        },
       };
       const res = await fetch("/-/api/variant", {
         method: "PUT",
@@ -442,40 +531,112 @@ export function App() {
       <header className="sticky top-0 z-30 border-b border-zinc-800/80 bg-zinc-950/95 backdrop-blur">
         <div className="mx-auto max-w-7xl px-4 lg:px-8 h-16 flex items-center justify-between">
           <div className="inline-flex items-center gap-3">
-            <Sparkles className="h-5 w-5 text-brand-400" />
+            <img
+              src={bffCandyHeartLogo}
+              alt="Mock BFF logo"
+              className="h-6 w-6"
+            />
             <div>
-              <h1 className="text-sm sm:text-base font-semibold tracking-tight">Mock BFF Admin</h1>
+              <h1 className="text-sm sm:text-base font-semibold tracking-tight">
+                Mock BFF Admin
+              </h1>
               <div className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-zinc-400">
-                <span className={`inline-block h-2 w-2 rounded-full ${liveConnected ? "bg-emerald-400" : "bg-rose-400"}`} />
+                <span
+                  className={`inline-block h-2 w-2 rounded-full ${liveConnected ? "bg-emerald-400" : "bg-rose-400"}`}
+                />
                 {liveConnected ? "Live connected" : "Live disconnected"}
               </div>
             </div>
           </div>
-          <button className="lg:hidden rounded-lg border border-zinc-700 p-2" onClick={() => setMobileMenuOpen((v) => !v)} aria-label="Toggle menu">
-            {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          <button
+            className="lg:hidden rounded-lg border border-zinc-700 p-2"
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? (
+              <X className="h-4 w-4" />
+            ) : (
+              <Menu className="h-4 w-4" />
+            )}
           </button>
           <nav className="hidden lg:flex items-center gap-2">
-            <Tab to="/" label="Dashboard" icon={<Gauge className="h-4 w-4" />} />
-            <Tab to="/endpoints" label="Endpoints" icon={<ListTree className="h-4 w-4" />} />
-            <Tab to="/variants" label="Variants" icon={<RouteIcon className="h-4 w-4" />} />
+            <Tab
+              to="/"
+              label="Dashboard"
+              icon={<Gauge className="h-4 w-4" />}
+            />
+            <Tab
+              to="/endpoints"
+              label="Endpoints"
+              icon={<ListTree className="h-4 w-4" />}
+            />
+            <Tab
+              to="/variants"
+              label="Variants"
+              icon={<RouteIcon className="h-4 w-4" />}
+            />
             <Tab to="/logs" label="Logs" icon={<Logs className="h-4 w-4" />} />
-            <Tab to="/openapi" label="OpenAPI" icon={<FileJson className="h-4 w-4" />} />
-            <Tab to="/settings" label="Settings" icon={<Settings className="h-4 w-4" />} />
+            <Tab
+              to="/openapi"
+              label="OpenAPI"
+              icon={<FileJson className="h-4 w-4" />}
+            />
+            <Tab
+              to="/settings"
+              label="Settings"
+              icon={<Settings className="h-4 w-4" />}
+            />
           </nav>
         </div>
       </header>
 
       {mobileMenuOpen ? (
-        <div className="lg:hidden fixed inset-0 z-20 bg-black/60" onClick={() => setMobileMenuOpen(false)}>
-          <aside className="absolute right-0 top-0 h-full w-72 bg-zinc-900 border-l border-zinc-800 p-4 pt-20" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="lg:hidden fixed inset-0 z-20 bg-black/60"
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          <aside
+            className="absolute right-0 top-0 h-full w-72 bg-zinc-900 border-l border-zinc-800 p-4 pt-20"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="mb-4 text-sm font-semibold">Navigation</div>
             <div className="flex flex-col gap-2">
-              <Tab to="/" label="Dashboard" icon={<Gauge className="h-4 w-4" />} onClick={() => setMobileMenuOpen(false)} />
-              <Tab to="/endpoints" label="Endpoints" icon={<ListTree className="h-4 w-4" />} onClick={() => setMobileMenuOpen(false)} />
-              <Tab to="/variants" label="Variants" icon={<RouteIcon className="h-4 w-4" />} onClick={() => setMobileMenuOpen(false)} />
-              <Tab to="/logs" label="Logs" icon={<Logs className="h-4 w-4" />} onClick={() => setMobileMenuOpen(false)} />
-              <Tab to="/openapi" label="OpenAPI" icon={<FileJson className="h-4 w-4" />} onClick={() => setMobileMenuOpen(false)} />
-              <Tab to="/settings" label="Settings" icon={<Settings className="h-4 w-4" />} onClick={() => setMobileMenuOpen(false)} />
+              <Tab
+                to="/"
+                label="Dashboard"
+                icon={<Gauge className="h-4 w-4" />}
+                onClick={() => setMobileMenuOpen(false)}
+              />
+              <Tab
+                to="/endpoints"
+                label="Endpoints"
+                icon={<ListTree className="h-4 w-4" />}
+                onClick={() => setMobileMenuOpen(false)}
+              />
+              <Tab
+                to="/variants"
+                label="Variants"
+                icon={<RouteIcon className="h-4 w-4" />}
+                onClick={() => setMobileMenuOpen(false)}
+              />
+              <Tab
+                to="/logs"
+                label="Logs"
+                icon={<Logs className="h-4 w-4" />}
+                onClick={() => setMobileMenuOpen(false)}
+              />
+              <Tab
+                to="/openapi"
+                label="OpenAPI"
+                icon={<FileJson className="h-4 w-4" />}
+                onClick={() => setMobileMenuOpen(false)}
+              />
+              <Tab
+                to="/settings"
+                label="Settings"
+                icon={<Settings className="h-4 w-4" />}
+                onClick={() => setMobileMenuOpen(false)}
+              />
             </div>
           </aside>
         </div>
@@ -483,8 +644,39 @@ export function App() {
 
       <div className="mx-auto max-w-7xl p-6 lg:p-8 space-y-6">
         <Routes>
-          <Route path="/" element={<DashboardPage stats={stats} refresh={refresh} setHash={(h) => (window.location.hash = h)} busy={busy} harFile={harFile} setHarFile={setHarFile} openApiFile={openApiFile} setOpenApiFile={setOpenApiFile} uploadFile={uploadFile} />} />
-          <Route path="/endpoints" element={<EndpointsPage filteredEndpoints={filteredEndpoints} endpointSearch={endpointSearch} setEndpointSearch={setEndpointSearch} allFilteredSelected={allFilteredSelected} setAllFilteredSelection={setAllFilteredSelection} selectedEndpointKeys={selectedEndpointKeys} toggleEndpointSelection={toggleEndpointSelection} clearEndpoint={clearEndpoint} clearSelectedEndpoints={clearSelectedEndpoints} busy={busy} />} />
+          <Route
+            path="/"
+            element={
+              <DashboardPage
+                stats={stats}
+                refresh={refresh}
+                setHash={(h) => (window.location.hash = h)}
+                busy={busy}
+                harFile={harFile}
+                setHarFile={setHarFile}
+                openApiFile={openApiFile}
+                setOpenApiFile={setOpenApiFile}
+                uploadFile={uploadFile}
+              />
+            }
+          />
+          <Route
+            path="/endpoints"
+            element={
+              <EndpointsPage
+                filteredEndpoints={filteredEndpoints}
+                endpointSearch={endpointSearch}
+                setEndpointSearch={setEndpointSearch}
+                allFilteredSelected={allFilteredSelected}
+                setAllFilteredSelection={setAllFilteredSelection}
+                selectedEndpointKeys={selectedEndpointKeys}
+                toggleEndpointSelection={toggleEndpointSelection}
+                clearEndpoint={clearEndpoint}
+                clearSelectedEndpoints={clearSelectedEndpoints}
+                busy={busy}
+              />
+            }
+          />
           <Route
             path="/variants"
             element={
@@ -525,12 +717,75 @@ export function App() {
               />
             }
           />
-          <Route path="/logs" element={<LogsPage requests={requests} misses={misses} loadRequests={loadRequests} clearLogs={clearLogsWithConfirm} loadMisses={loadMisses} clearMisses={clearMissesWithConfirm} setPromptDialog={setPromptDialog} />} />
-          <Route path="/openapi" element={<OpenApiPage busy={busy} openApiFile={openApiFile} setOpenApiFile={setOpenApiFile} uploadFile={uploadFile} openApiDoc={openApiDoc} loadOpenApiDoc={loadOpenApiDoc} />} />
-          <Route path="/settings" element={<SettingsPage busy={busy} configError={configError} saveConfig={saveConfig} getAiStorePrompt={getAiStorePrompt} setAiStorePrompt={setAiStorePrompt} providerInfo={providerInfo} providerName={providerName} setProviderName={setProviderName} providerModel={providerModel} setProviderModel={setProviderModel} openaiBaseUrl={openaiBaseUrl} setOpenaiBaseUrl={setOpenaiBaseUrl} anthropicBaseUrl={anthropicBaseUrl} setAnthropicBaseUrl={setAnthropicBaseUrl} ollamaBaseUrl={ollamaBaseUrl} setOllamaBaseUrl={setOllamaBaseUrl} loadProviders={loadProviders} showPromptHints={showPromptHints} setShowPromptHints={setShowPromptHints} promptTemplate={promptTemplate} setPromptTemplate={setPromptTemplate} configText={configText} setConfigText={setConfigText} context={context} setContext={setContext} saveContext={saveContext} />} />
+          <Route
+            path="/logs"
+            element={
+              <LogsPage
+                requests={requests}
+                misses={misses}
+                loadRequests={loadRequests}
+                clearLogs={clearLogsWithConfirm}
+                loadMisses={loadMisses}
+                clearMisses={clearMissesWithConfirm}
+                setPromptDialog={setPromptDialog}
+              />
+            }
+          />
+          <Route
+            path="/openapi"
+            element={
+              <OpenApiPage
+                busy={busy}
+                openApiFile={openApiFile}
+                setOpenApiFile={setOpenApiFile}
+                uploadFile={uploadFile}
+                openApiDoc={openApiDoc}
+                loadOpenApiDoc={loadOpenApiDoc}
+              />
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <SettingsPage
+                busy={busy}
+                configError={configError}
+                saveConfig={saveConfig}
+                getAiStorePrompt={getAiStorePrompt}
+                setAiStorePrompt={setAiStorePrompt}
+                providerInfo={providerInfo}
+                providerName={providerName}
+                setProviderName={setProviderName}
+                providerModel={providerModel}
+                setProviderModel={setProviderModel}
+                openaiBaseUrl={openaiBaseUrl}
+                setOpenaiBaseUrl={setOpenaiBaseUrl}
+                anthropicBaseUrl={anthropicBaseUrl}
+                setAnthropicBaseUrl={setAnthropicBaseUrl}
+                ollamaBaseUrl={ollamaBaseUrl}
+                setOllamaBaseUrl={setOllamaBaseUrl}
+                loadProviders={loadProviders}
+                showPromptHints={showPromptHints}
+                setShowPromptHints={setShowPromptHints}
+                promptTemplate={promptTemplate}
+                setPromptTemplate={setPromptTemplate}
+                configText={configText}
+                setConfigText={setConfigText}
+                context={context}
+                setContext={setContext}
+                saveContext={saveContext}
+              />
+            }
+          />
         </Routes>
 
-        {promptDialog ? <PromptDialog prompt={promptDialog} onClose={() => setPromptDialog(null)} showToast={showToast} /> : null}
+        {promptDialog ? (
+          <PromptDialog
+            prompt={promptDialog}
+            onClose={() => setPromptDialog(null)}
+            showToast={showToast}
+          />
+        ) : null}
         <ConfirmDialog
           open={confirmState.open}
           title={confirmState.title}
@@ -545,7 +800,11 @@ export function App() {
             setConfirmState({ open: false, message: "" });
           }}
         />
-        {toast ? <div className="fixed bottom-6 right-6 rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2 text-sm shadow-lg">{toast}</div> : null}
+        {toast ? (
+          <div className="fixed bottom-6 right-6 rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2 text-sm shadow-lg">
+            {toast}
+          </div>
+        ) : null}
       </div>
     </main>
   );

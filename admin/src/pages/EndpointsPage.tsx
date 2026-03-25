@@ -1,4 +1,3 @@
-import { RefreshCcw } from "lucide-react";
 import { Card } from "../components/Card";
 import type { Endpoint } from "../types";
 
@@ -15,7 +14,6 @@ export function EndpointsPage(props: {
     checked: boolean,
   ) => void;
   clearEndpoint: (method: string, path: string) => void;
-  loadEndpoints: () => void;
   clearSelectedEndpoints: () => void;
   busy: boolean;
 }) {
@@ -29,14 +27,6 @@ export function EndpointsPage(props: {
       subtitle="Search, review and clear endpoint groups."
       actions={
         <div className="flex items-center gap-2">
-          <button
-            onClick={props.loadEndpoints}
-            className="rounded-xl border border-zinc-700 p-2 text-xs inline-flex items-center"
-            aria-label="Refresh endpoints"
-            title="Refresh endpoints"
-          >
-            <RefreshCcw className="h-3.5 w-3.5" />
-          </button>
           <button
             onClick={props.clearSelectedEndpoints}
             disabled={props.busy || selectedCount === 0}

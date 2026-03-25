@@ -18,12 +18,6 @@ export function LogsPage(props: {
         actions={
           <div className="flex gap-2">
             <button
-              onClick={props.loadRequests}
-              className="rounded-lg border border-zinc-700 px-3 py-2 text-xs"
-            >
-              Refresh
-            </button>
-            <button
               onClick={props.clearLogs}
               className="rounded-lg border border-rose-700 text-rose-300 px-3 py-2 text-xs"
             >
@@ -88,12 +82,6 @@ export function LogsPage(props: {
         subtitle="Unmatched requests captured during runtime."
         actions={
           <div className="flex gap-2">
-            <button
-              onClick={props.loadMisses}
-              className="rounded-lg border border-zinc-700 px-3 py-2 text-xs"
-            >
-              Refresh
-            </button>
             <button
               onClick={props.clearMisses}
               className="rounded-lg border border-rose-700 text-rose-300 px-3 py-2 text-xs"

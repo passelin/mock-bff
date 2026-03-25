@@ -251,6 +251,12 @@ export async function createApp(options: CreateAppOptions) {
     prompt?: string;
   }> = [];
 
+  const sseClients = new Set<{ id: string; send: (event: string, data: unknown) => void }>();
+
+  const emitLiveEvent = (event: string, data: unknown = {}) => {
+    for (const c of sseClients) c.send(event, data);
+  };
+
   const pushRequestLog = (entry: {
     at: string;
     method: string;
@@ -270,6 +276,7 @@ export async function createApp(options: CreateAppOptions) {
     if (requestLogs.length > maxRequestLogs) {
       requestLogs.splice(0, requestLogs.length - maxRequestLogs);
     }
+    emitLiveEvent("request", { at: entry.at, method: entry.method, path: entry.path, status: entry.status, match: entry.match });
   };
 
   const initialConfig = await storage.readConfig();
@@ -412,6 +419,7 @@ export async function createApp(options: CreateAppOptions) {
         : "openapi.json",
     );
     await writeFile(target, data);
+    emitLiveEvent("openapi-updated", { saved: true });
     return { saved: true };
   });
 
@@ -454,6 +462,7 @@ export async function createApp(options: CreateAppOptions) {
     }
 
     await storage.writeIndex(index);
+    emitLiveEvent("endpoints-updated", { source: "har", imported: parsed.length });
     return { imported: parsed.length };
   });
 
@@ -483,12 +492,14 @@ export async function createApp(options: CreateAppOptions) {
         (e) => !(e.method === method && e.path === apiPath),
       );
       await storage.writeIndex(next);
+      emitLiveEvent("endpoints-updated", { action: "endpoint-deleted", method, path: apiPath });
       return { cleared: true, method, path: apiPath };
     },
   );
 
   app.delete("/-/api/endpoints", async () => {
     await storage.clearAllMocks();
+    emitLiveEvent("endpoints-updated", { action: "endpoints-cleared" });
     return { clearedAll: true };
   });
 
@@ -629,6 +640,8 @@ export async function createApp(options: CreateAppOptions) {
         await storage.writeIndex(idx);
       }
 
+      emitLiveEvent("variants-updated", { action: "variant-deleted", method, path: apiPath, id });
+      emitLiveEvent("endpoints-updated", { action: "variant-deleted", method, path: apiPath });
       return { deleted: true };
     },
   );
@@ -670,6 +683,8 @@ export async function createApp(options: CreateAppOptions) {
       });
     }
 
+    emitLiveEvent("variants-updated", { action: "variant-saved", method, path: apiPath, id });
+    emitLiveEvent("endpoints-updated", { action: "variant-saved", method, path: apiPath });
     return { saved: true };
   });
 
@@ -718,6 +733,7 @@ export async function createApp(options: CreateAppOptions) {
 
   app.delete("/-/api/misses", async () => {
     await storage.clearMisses();
+    emitLiveEvent("misses-cleared", {});
     return { cleared: true };
   });
 
@@ -733,8 +749,41 @@ export async function createApp(options: CreateAppOptions) {
     },
   );
 
+  app.get("/-/api/events", async (_req, reply) => {
+    reply.raw.setHeader("Content-Type", "text/event-stream");
+    reply.raw.setHeader("Cache-Control", "no-cache");
+    reply.raw.setHeader("Connection", "keep-alive");
+    reply.raw.flushHeaders?.();
+
+    const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const send = (event: string, data: unknown) => {
+      reply.raw.write(`event: ${event}\n`);
+      reply.raw.write(`data: ${JSON.stringify(data)}\n\n`);
+    };
+
+    sseClients.add({ id, send });
+    send("ready", { ok: true });
+
+    const keepAlive = setInterval(() => {
+      reply.raw.write(`: ping\n\n`);
+    }, 25000);
+
+    reply.raw.on("close", () => {
+      clearInterval(keepAlive);
+      for (const c of sseClients) {
+        if (c.id === id) {
+          sseClients.delete(c);
+          break;
+        }
+      }
+    });
+
+    return reply;
+  });
+
   app.delete("/-/api/requests", async () => {
     requestLogs.splice(0, requestLogs.length);
+    emitLiveEvent("requests-cleared", {});
     return { cleared: true };
   });
 
@@ -838,6 +887,7 @@ export async function createApp(options: CreateAppOptions) {
           body,
           resolvedBy: "none",
         });
+        emitLiveEvent("miss", { method, path: fullPath, resolvedBy: "none" });
         pushRequestLog({
           at: new Date().toISOString(),
           method,
@@ -910,6 +960,7 @@ export async function createApp(options: CreateAppOptions) {
           body,
           resolvedBy: "none",
         });
+        emitLiveEvent("miss", { method, path: fullPath, resolvedBy: "none" });
         pushRequestLog({
           at: new Date().toISOString(),
           method,
@@ -930,6 +981,7 @@ export async function createApp(options: CreateAppOptions) {
         body,
         resolvedBy: "ai",
       });
+      emitLiveEvent("miss", { method, path: fullPath, resolvedBy: "ai" });
 
       const openapiFileJson = path.join(storage.metaDir(), "openapi.json");
       const openapiFileYaml = path.join(storage.metaDir(), "openapi.yaml");
@@ -975,6 +1027,8 @@ export async function createApp(options: CreateAppOptions) {
       );
       const index = await storage.readIndex();
       await storage.writeIndex(upsertIndex(index, method, fullPath, savedPath));
+      emitLiveEvent("variants-updated", { action: "variant-generated", method, path: fullPath, id: variantName });
+      emitLiveEvent("endpoints-updated", { action: "variant-generated", method, path: fullPath });
 
       pushRequestLog({
         at: new Date().toISOString(),

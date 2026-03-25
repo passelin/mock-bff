@@ -70,8 +70,6 @@ export function useAdminData(defaultPromptTemplate: string) {
 
   useEffect(() => {
     refresh();
-    const id = setInterval(loadRequests, 3000);
-    return () => clearInterval(id);
   }, []);
 
   useEffect(() => {

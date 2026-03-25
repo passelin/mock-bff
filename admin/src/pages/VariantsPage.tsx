@@ -1,4 +1,4 @@
-import { RefreshCcw, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { Card } from "../components/Card";
 import type { Endpoint, VariantMeta } from "../types";
 
@@ -26,7 +26,6 @@ export function VariantsPage(props: {
   selectedMethod: string;
   selectedPath: string;
   loadVariants: (method: string, path: string) => void;
-  loadEndpoints: () => void;
   clearSelectedEndpoints: () => void;
   clearEndpoint: (method: string, path: string) => void;
 
@@ -72,7 +71,7 @@ export function VariantsPage(props: {
           <Card
             title="Endpoints"
             subtitle="Pick endpoint to load variants."
-            actions={<div className="flex items-center gap-2"><button onClick={props.loadEndpoints} className="rounded-xl border border-zinc-700 p-2 text-xs inline-flex items-center"><RefreshCcw className="h-3.5 w-3.5" /></button><button onClick={props.clearSelectedEndpoints} disabled={props.busy || props.filteredEndpoints.filter((ep) => props.selectedEndpointKeys[`${ep.method} ${ep.path}`]).length === 0} className="rounded-xl border border-rose-700 text-rose-300 px-3 py-2 text-xs hover:bg-rose-900/30 disabled:opacity-50">Delete</button></div>}
+            actions={<div className="flex items-center gap-2"><button onClick={props.clearSelectedEndpoints} disabled={props.busy || props.filteredEndpoints.filter((ep) => props.selectedEndpointKeys[`${ep.method} ${ep.path}`]).length === 0} className="rounded-xl border border-rose-700 text-rose-300 px-3 py-2 text-xs hover:bg-rose-900/30 disabled:opacity-50">Delete</button></div>}
           >
             <div className="mb-3 flex items-center gap-2"><input type="checkbox" checked={props.allFilteredSelected} onChange={(e) => props.setAllFilteredSelection(e.target.checked)} /><span className="text-xs text-zinc-400">Select / deselect all shown</span></div>
             <input value={props.endpointSearch} onChange={(e) => props.setEndpointSearch(e.target.value)} placeholder="Search endpoints..." className="mb-3 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs" />

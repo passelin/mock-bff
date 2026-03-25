@@ -157,6 +157,7 @@ export function App() {
   const editorSplit = 40;
   const [endpointSearch, setEndpointSearch] = useState("");
   const [selectedEndpointKeys, setSelectedEndpointKeys] = useState<Record<string, boolean>>({});
+  const [liveConnected, setLiveConnected] = useState(false);
   const [confirmState, setConfirmState] = useState<{
     open: boolean;
     title?: string;
@@ -215,6 +216,47 @@ export function App() {
       Promise.all([loadConfig(), loadProviders(), loadContext()]);
     }
   }, [location.pathname]);
+
+  useEffect(() => {
+    const path = location.pathname;
+    const es = new EventSource("/-/api/events");
+
+    es.onopen = () => setLiveConnected(true);
+    es.onerror = () => setLiveConnected(false);
+    es.addEventListener("ready", () => setLiveConnected(true));
+
+    if (path === "/logs") {
+      const refreshLogs = () => {
+        loadRequests();
+        loadMisses();
+      };
+      es.addEventListener("request", refreshLogs);
+      es.addEventListener("miss", refreshLogs);
+      es.addEventListener("requests-cleared", refreshLogs);
+      es.addEventListener("misses-cleared", refreshLogs);
+    }
+
+    if (path === "/endpoints" || path === "/variants") {
+      const refreshEndpoints = () => {
+        loadEndpoints();
+        if (path === "/variants" && selectedMethod && selectedPath) {
+          loadVariants(selectedMethod, selectedPath);
+        }
+      };
+      es.addEventListener("endpoints-updated", refreshEndpoints);
+      es.addEventListener("variants-updated", refreshEndpoints);
+    }
+
+    if (path === "/openapi") {
+      const refreshOpenApi = () => loadOpenApiDoc();
+      es.addEventListener("openapi-updated", refreshOpenApi);
+    }
+
+    return () => {
+      es.close();
+      setLiveConnected(false);
+    };
+  }, [location.pathname, selectedMethod, selectedPath]);
 
   function confirmAction(message: string, title?: string, confirmLabel?: string): Promise<boolean> {
     return new Promise((resolve) => {
@@ -403,6 +445,10 @@ export function App() {
             <Sparkles className="h-5 w-5 text-brand-400" />
             <div>
               <h1 className="text-sm sm:text-base font-semibold tracking-tight">Mock BFF Admin</h1>
+              <div className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-zinc-400">
+                <span className={`inline-block h-2 w-2 rounded-full ${liveConnected ? "bg-emerald-400" : "bg-rose-400"}`} />
+                {liveConnected ? "Live connected" : "Live disconnected"}
+              </div>
             </div>
           </div>
           <button className="lg:hidden rounded-lg border border-zinc-700 p-2" onClick={() => setMobileMenuOpen((v) => !v)} aria-label="Toggle menu">
@@ -438,7 +484,7 @@ export function App() {
       <div className="mx-auto max-w-7xl p-6 lg:p-8 space-y-6">
         <Routes>
           <Route path="/" element={<DashboardPage stats={stats} refresh={refresh} setHash={(h) => (window.location.hash = h)} busy={busy} harFile={harFile} setHarFile={setHarFile} openApiFile={openApiFile} setOpenApiFile={setOpenApiFile} uploadFile={uploadFile} />} />
-          <Route path="/endpoints" element={<EndpointsPage filteredEndpoints={filteredEndpoints} endpointSearch={endpointSearch} setEndpointSearch={setEndpointSearch} allFilteredSelected={allFilteredSelected} setAllFilteredSelection={setAllFilteredSelection} selectedEndpointKeys={selectedEndpointKeys} toggleEndpointSelection={toggleEndpointSelection} clearEndpoint={clearEndpoint} loadEndpoints={loadEndpoints} clearSelectedEndpoints={clearSelectedEndpoints} busy={busy} />} />
+          <Route path="/endpoints" element={<EndpointsPage filteredEndpoints={filteredEndpoints} endpointSearch={endpointSearch} setEndpointSearch={setEndpointSearch} allFilteredSelected={allFilteredSelected} setAllFilteredSelection={setAllFilteredSelection} selectedEndpointKeys={selectedEndpointKeys} toggleEndpointSelection={toggleEndpointSelection} clearEndpoint={clearEndpoint} clearSelectedEndpoints={clearSelectedEndpoints} busy={busy} />} />
           <Route
             path="/variants"
             element={
@@ -465,7 +511,6 @@ export function App() {
                 selectedMethod={selectedMethod}
                 selectedPath={selectedPath}
                 loadVariants={loadVariants}
-                loadEndpoints={loadEndpoints}
                 clearSelectedEndpoints={clearSelectedEndpoints}
                 clearEndpoint={clearEndpoint}
                 editorSplit={editorSplit}

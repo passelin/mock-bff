@@ -1,0 +1,600 @@
+openapi: 3.0.3
+info:
+  title: Mock Banking API
+  version: 1.0.0
+  description: |
+    Sample banking contract for testing mock-bff OpenAPI validation/generation.
+servers:
+  - url: https://api.mockbank.local
+
+tags:
+  - name: Auth
+  - name: Accounts
+  - name: Transactions
+  - name: Transfers
+  - name: Cards
+  - name: Beneficiaries
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login and get access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Auth token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me:
+    get:
+      tags: [Auth]
+      summary: Get current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /accounts:
+    get:
+      tags: [Accounts]
+      summary: List customer accounts
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [checking, savings, credit]
+        - in: query
+          name: currency
+          schema:
+            type: string
+            pattern: '^[A-Z]{3}$'
+      responses:
+        '200':
+          description: Accounts list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Account'
+                  total:
+                    type: integer
+                    minimum: 0
+
+  /accounts/{accountId}:
+    get:
+      tags: [Accounts]
+      summary: Get account details
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+      responses:
+        '200':
+          description: Account details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /accounts/{accountId}/transactions:
+    get:
+      tags: [Transactions]
+      summary: List account transactions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: Transactions list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Transaction'
+                  total:
+                    type: integer
+                    minimum: 0
+
+  /transactions/{transactionId}:
+    get:
+      tags: [Transactions]
+      summary: Get transaction details
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TransactionId'
+      responses:
+        '200':
+          description: Transaction details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /transfers:
+    post:
+      tags: [Transfers]
+      summary: Create transfer between accounts
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransferRequest'
+      responses:
+        '201':
+          description: Transfer created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transfer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+    get:
+      tags: [Transfers]
+      summary: List transfers
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, completed, failed, cancelled]
+      responses:
+        '200':
+          description: Transfers list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Transfer'
+                  total:
+                    type: integer
+
+  /transfers/{transferId}:
+    get:
+      tags: [Transfers]
+      summary: Get transfer status/details
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TransferId'
+      responses:
+        '200':
+          description: Transfer details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transfer'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /cards:
+    get:
+      tags: [Cards]
+      summary: List cards
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Cards list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Card'
+                  total:
+                    type: integer
+
+  /cards/{cardId}/lock:
+    post:
+      tags: [Cards]
+      summary: Lock a card
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CardId'
+      responses:
+        '200':
+          description: Card lock status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [cardId, locked]
+                properties:
+                  cardId:
+                    type: string
+                  locked:
+                    type: boolean
+
+  /beneficiaries:
+    get:
+      tags: [Beneficiaries]
+      summary: List transfer beneficiaries
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Beneficiary list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Beneficiary'
+                  total:
+                    type: integer
+
+    post:
+      tags: [Beneficiaries]
+      summary: Add beneficiary
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBeneficiaryRequest'
+      responses:
+        '201':
+          description: Beneficiary created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Beneficiary'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    AccountId:
+      in: path
+      name: accountId
+      required: true
+      schema:
+        type: string
+        pattern: '^acc_[A-Za-z0-9]{8,}$'
+    TransactionId:
+      in: path
+      name: transactionId
+      required: true
+      schema:
+        type: string
+        pattern: '^txn_[A-Za-z0-9]{8,}$'
+    TransferId:
+      in: path
+      name: transferId
+      required: true
+      schema:
+        type: string
+        pattern: '^trf_[A-Za-z0-9]{8,}$'
+    CardId:
+      in: path
+      name: cardId
+      required: true
+      schema:
+        type: string
+        pattern: '^card_[A-Za-z0-9]{8,}$'
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+
+    AuthResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn]
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          example: 3600
+
+    UserProfile:
+      type: object
+      required: [userId, firstName, lastName, email, createdAt]
+      properties:
+        userId:
+          type: string
+          example: usr_8c9f19de
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount:
+          type: number
+          format: double
+          minimum: 0
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+
+    Account:
+      type: object
+      required: [accountId, type, nickname, ibanMasked, balance, availableBalance, status, createdAt]
+      properties:
+        accountId:
+          type: string
+          example: acc_A1B2C3D4
+        type:
+          type: string
+          enum: [checking, savings, credit]
+        nickname:
+          type: string
+        ibanMasked:
+          type: string
+          example: '**** **** **** 1234'
+        balance:
+          $ref: '#/components/schemas/Money'
+        availableBalance:
+          $ref: '#/components/schemas/Money'
+        status:
+          type: string
+          enum: [active, frozen, closed]
+        createdAt:
+          type: string
+          format: date-time
+
+    Transaction:
+      type: object
+      required: [transactionId, accountId, postedAt, amount, direction, description, category, status]
+      properties:
+        transactionId:
+          type: string
+          example: txn_1A2B3C4D
+        accountId:
+          type: string
+        postedAt:
+          type: string
+          format: date-time
+        amount:
+          $ref: '#/components/schemas/Money'
+        direction:
+          type: string
+          enum: [debit, credit]
+        description:
+          type: string
+        merchantName:
+          type: string
+        category:
+          type: string
+          enum: [groceries, dining, transport, utilities, salary, transfer, fees, other]
+        status:
+          type: string
+          enum: [pending, posted, reversed]
+
+    CreateTransferRequest:
+      type: object
+      required: [fromAccountId, toAccountId, amount]
+      properties:
+        fromAccountId:
+          type: string
+        toAccountId:
+          type: string
+        amount:
+          $ref: '#/components/schemas/Money'
+        reference:
+          type: string
+          maxLength: 140
+
+    Transfer:
+      type: object
+      required: [transferId, fromAccountId, toAccountId, amount, status, createdAt]
+      properties:
+        transferId:
+          type: string
+          example: trf_AB12CD34
+        fromAccountId:
+          type: string
+        toAccountId:
+          type: string
+        amount:
+          $ref: '#/components/schemas/Money'
+        status:
+          type: string
+          enum: [pending, completed, failed, cancelled]
+        reference:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+
+    Card:
+      type: object
+      required: [cardId, accountId, network, last4, holderName, expiryMonth, expiryYear, status, locked]
+      properties:
+        cardId:
+          type: string
+          example: card_DEADBEEF
+        accountId:
+          type: string
+        network:
+          type: string
+          enum: [visa, mastercard, amex]
+        last4:
+          type: string
+          pattern: '^\d{4}$'
+        holderName:
+          type: string
+        expiryMonth:
+          type: integer
+          minimum: 1
+          maximum: 12
+        expiryYear:
+          type: integer
+          minimum: 2024
+        status:
+          type: string
+          enum: [active, expired, cancelled]
+        locked:
+          type: boolean
+
+    Beneficiary:
+      type: object
+      required: [beneficiaryId, name, bankName, accountMask, createdAt]
+      properties:
+        beneficiaryId:
+          type: string
+          example: ben_9988AABB
+        name:
+          type: string
+        bankName:
+          type: string
+        accountMask:
+          type: string
+          example: '****1234'
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateBeneficiaryRequest:
+      type: object
+      required: [name, bankName, accountNumber, routingNumber]
+      properties:
+        name:
+          type: string
+        bankName:
+          type: string
+        accountNumber:
+          type: string
+          minLength: 6
+        routingNumber:
+          type: string
+          minLength: 6
+
+    ErrorResponse:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        code:
+          type: string
+        traceId:
+          type: string

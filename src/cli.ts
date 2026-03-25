@@ -17,7 +17,7 @@ Options:
       --model <id>            AI model id (provider-specific)
       --openai-base-url <url> OpenAI-compatible base URL override for OpenAI provider
       --anthropic-base-url <url> Anthropic base URL override
-      --ollama-base-url <url> Ollama base URL (default: http://127.0.0.1:11434/v1)
+      --ollama-base-url <url> Ollama base URL (default: http://127.0.0.1:11434)
   -h, --help                  Show help
 
 Environment:
@@ -25,7 +25,7 @@ Environment:
   ANTHROPIC_API_KEY           Required when --provider anthropic
   OPENAI_BASE_URL             Optional OpenAI base URL override
   ANTHROPIC_BASE_URL          Optional Anthropic base URL override
-  OLLAMA_BASE_URL             Optional Ollama base URL override (default http://127.0.0.1:11434/v1)
+  OLLAMA_BASE_URL             Optional Ollama base URL override (default http://127.0.0.1:11434)
   MOCK_MAX_UPLOAD_BYTES       Multipart upload limit bytes (default: 250MB)
 `);
 }
@@ -64,9 +64,12 @@ async function main() {
 
   if (args.provider) process.env.MOCK_AI_PROVIDER = String(args.provider);
   if (args.model) process.env.MOCK_AI_MODEL = String(args.model);
-  if (args.openaiBaseUrl) process.env.OPENAI_BASE_URL = String(args.openaiBaseUrl);
-  if (args.anthropicBaseUrl) process.env.ANTHROPIC_BASE_URL = String(args.anthropicBaseUrl);
-  if (args.ollamaBaseUrl) process.env.OLLAMA_BASE_URL = String(args.ollamaBaseUrl);
+  if (args.openaiBaseUrl)
+    process.env.OPENAI_BASE_URL = String(args.openaiBaseUrl);
+  if (args.anthropicBaseUrl)
+    process.env.ANTHROPIC_BASE_URL = String(args.anthropicBaseUrl);
+  if (args.ollamaBaseUrl)
+    process.env.OLLAMA_BASE_URL = String(args.ollamaBaseUrl);
 
   const rootDir = args.root ? path.resolve(String(args.root)) : process.cwd();
 

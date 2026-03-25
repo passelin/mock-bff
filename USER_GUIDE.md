@@ -11,11 +11,13 @@ mock-bff --port 8787
 ```
 
 Admin UI:
+
 - `http://localhost:8787/-/admin`
 
 ## 2) Import data
 
 In Dashboard:
+
 1. Upload a HAR file
 2. Optionally upload an OpenAPI file
 
@@ -30,9 +32,11 @@ http://localhost:8787
 ```
 
 Example endpoint:
+
 - `GET /api/user/plans` -> `http://localhost:8787/api/user/plans`
 
 Admin APIs are under:
+
 - `/-/api/*`
 
 ## 4) Manage endpoints and variants
@@ -50,6 +54,7 @@ Admin APIs are under:
 ## 6) AI providers
 
 ### OpenAI
+
 ```bash
 export OPENAI_API_KEY=...
 # optional
@@ -58,6 +63,7 @@ mock-bff --provider openai --model gpt-5.4-mini
 ```
 
 ### Anthropic
+
 ```bash
 export ANTHROPIC_API_KEY=...
 # optional
@@ -66,15 +72,17 @@ mock-bff --provider anthropic --model claude-3-5-sonnet-latest
 ```
 
 ### Ollama
+
 ```bash
-# optional (defaults to http://127.0.0.1:11434/v1)
-export OLLAMA_BASE_URL=http://localhost:11434/v1
+# optional (defaults to http://127.0.0.1:11434)
+export OLLAMA_BASE_URL=http://localhost:11434
 mock-bff --provider ollama --model llama3.1:8b
 # optional CLI override
-mock-bff --provider ollama --model llama3.1:8b --ollama-base-url http://localhost:11434/v1
+mock-bff --provider ollama --model llama3.1:8b --ollama-base-url http://localhost:11434
 ```
 
 ### None (deterministic fallback only)
+
 ```bash
 mock-bff --provider none
 ```
@@ -95,4 +103,4 @@ mock-bff --provider none
 - 404 for `/favicon.ico` and other assets is expected (non-API requests are rejected)
 - If endpoint exists but app misses, verify request method/path/query/body signature
 - If browser downloads unexpectedly, ensure stale transport headers are not persisted (handled by current ingest/replay sanitization)
- persisted (handled by current ingest/replay sanitization)
+  persisted (handled by current ingest/replay sanitization)

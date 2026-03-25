@@ -125,18 +125,17 @@ describe("mock bff", () => {
     await app.close();
   });
 
-  it("uses AI fallback on miss and then replays same response", async () => {
+  it("returns 404 on miss when AI is unavailable and no mock exists", async () => {
     const { app } = await makeApp();
+    await app.inject({ method: "PATCH", url: "/-/api/config", payload: { aiProvider: "none", aiEnabled: true } });
 
     const first = await app.inject({ method: "POST", url: "/api/unknown", payload: { term: "abc" } });
-    expect(first.statusCode).toBe(200);
-    expect(first.headers["x-mock-match"]).toBe("generated");
-    expect(first.headers["x-mock-source"]).toMatch(/^ai/);
+    expect(first.statusCode).toBe(404);
+    expect(first.json()).toEqual({ error: "No mock found" });
 
     const second = await app.inject({ method: "POST", url: "/api/unknown", payload: { term: "abc" } });
-    expect(second.statusCode).toBe(200);
-    expect(second.headers["x-mock-match"]).toBe("exact");
-    expect(second.json()).toEqual(first.json());
+    expect(second.statusCode).toBe(404);
+    expect(second.json()).toEqual({ error: "No mock found" });
 
     await app.close();
   });
@@ -152,15 +151,14 @@ describe("mock bff", () => {
     await app.close();
   });
 
-  it("enforces strict openapi mode for generated responses", async () => {
+  it("returns 404 in strict mode when no mock and AI cannot generate", async () => {
     const { app } = await makeApp();
     await app.inject({ method: "POST", url: "/-/api/openapi", ...multipartPayload("openapi.json", OPENAPI_STRICT, "xyz") });
-    await app.inject({ method: "PATCH", url: "/-/api/config", payload: { openApiMode: "strict", aiEnabled: true } });
+    await app.inject({ method: "PATCH", url: "/-/api/config", payload: { openApiMode: "strict", aiEnabled: true, aiProvider: "none" } });
 
     const miss = await app.inject({ method: "POST", url: "/api/unknown", payload: { x: 1 } });
-    expect(miss.statusCode).toBe(502);
-    expect(miss.headers["x-mock-match"]).toBe("generated-invalid");
-    expect(miss.json().error).toContain("violates OpenAPI");
+    expect(miss.statusCode).toBe(404);
+    expect(miss.json()).toEqual({ error: "No mock found" });
 
     await app.close();
   });
@@ -256,19 +254,18 @@ describe("mock bff", () => {
     await app.close();
   });
 
-  it("fallback generation infers meaningful entity for id-based GET", async () => {
+  it("returns 404 for id-based GET when no mock and AI cannot generate", async () => {
     const { app } = await makeApp();
+    await app.inject({ method: "PATCH", url: "/-/api/config", payload: { aiProvider: "none", aiEnabled: true } });
 
     const res = await app.inject({ method: "GET", url: "/api/users/1234" });
-    expect(res.statusCode).toBe(200);
-    expect(res.headers["x-mock-source"]).toMatch(/^ai/);
-    expect(res.json()).toHaveProperty("id");
-    expect(String(res.json().id)).toMatch(/1234|\d+/);
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: "No mock found" });
 
     await app.close();
   });
 
-  it("uses similar request response shape for fallback generation", async () => {
+  it("does not synthesize from similar request shape when AI is disabled", async () => {
     const { app } = await makeApp();
 
     await app.inject({ method: "PATCH", url: "/-/api/config", payload: { aiProvider: "none", aiEnabled: true } });
@@ -283,9 +280,8 @@ describe("mock bff", () => {
     await app.inject({ method: "PUT", url: "/-/api/variant", payload: { method: "GET", path: "/api/users/1234", id: "manual_user_1234", mock } });
 
     const res = await app.inject({ method: "GET", url: "/api/users/1111" });
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toHaveProperty("fullName");
-    expect(res.json()).toHaveProperty("role");
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: "No mock found" });
 
     await app.close();
   });

@@ -8,7 +8,7 @@ import path from "node:path";
 import { MockStorage } from "./storage.js";
 import { isApiLikeRequest, parseHar } from "./har.js";
 import { buildVariantName, matchMock } from "./matcher.js";
-import { generateMockResponse } from "./ai.js";
+import { buildPrompt, generateMockResponse } from "./ai.js";
 import { normalizePath, normalizeQuery } from "./utils.js";
 import { loadOpenApiFile, validateResponseWithOpenApi } from "./openapi.js";
 import type { AppConfig, IndexEntry, StoredMock } from "./types.js";
@@ -278,7 +278,7 @@ export async function createApp(options: CreateAppOptions) {
 
   app.get("/-/api/providers", async () => {
     const cfg = await storage.readConfig();
-    const ollamaBase = process.env.OLLAMA_BASE_URL ?? cfg.providerBaseUrls?.ollama ?? "http://127.0.0.1:11434/v1";
+    const ollamaBase = process.env.OLLAMA_BASE_URL ?? cfg.providerBaseUrls?.ollama ?? "http://127.0.0.1:11434";
     const ollamaModels = await listOllamaModels(ollamaBase);
 
     return {
@@ -373,11 +373,58 @@ export async function createApp(options: CreateAppOptions) {
     if (!method || !apiPath) return reply.code(400).send({ error: "method and path query params are required" });
 
     const files = await storage.listVariants(method, apiPath);
-    const items = [] as Array<{ id: string; file: string; source?: string; status?: number; createdAt?: string }>;
+    const items = [] as Array<{ id: string; file: string; source?: string; status?: number; createdAt?: string; displayLabel?: string }>;
+
+    const pickPriorityKey = (obj: Record<string, unknown>): string | undefined => {
+      const keys = Object.keys(obj);
+      if (keys.length === 0) return undefined;
+      const lower = keys.map((k) => k.toLowerCase());
+      const exactId = keys.find((k) => k.toLowerCase() === "id");
+      if (exactId) return exactId;
+      const starId = keys.find((k) => k.toLowerCase().endsWith("id"));
+      if (starId) return starId;
+      const name = keys.find((k) => k.toLowerCase() === "name");
+      if (name) return name;
+      const type = keys.find((k) => k.toLowerCase() === "type");
+      if (type) return type;
+      return keys[0];
+    };
+
     for (const file of files) {
       const mock = await storage.readMock(file);
       const id = file.split("/").pop()?.replace(/\.json$/, "") ?? file;
-      items.push({ id, file, source: mock?.meta.source, status: mock?.response.status, createdAt: mock?.meta.createdAt });
+      const snap = (mock?.requestSnapshot ?? {}) as { query?: Record<string, string | string[] | undefined>; body?: unknown };
+      const query = snap.query ?? {};
+      const body = snap.body;
+
+      const usp = new URLSearchParams();
+      for (const [k, v] of Object.entries(query)) {
+        if (Array.isArray(v)) v.forEach((x) => usp.append(k, String(x)));
+        else if (v !== undefined) usp.append(k, String(v));
+      }
+      const queryStr = usp.toString();
+
+      let bodyStr = "";
+      if (Array.isArray(body)) {
+        const len = body.length;
+        const first = body[0];
+        let firstPart = "";
+        if (first && typeof first === "object" && !Array.isArray(first)) {
+          const k = pickPriorityKey(first as Record<string, unknown>);
+          if (k) {
+            const v = (first as Record<string, unknown>)[k];
+            firstPart = String(v ?? "").slice(0, 10);
+          }
+        }
+        bodyStr = `[${len}]${firstPart ? ` ${firstPart}` : ""}`;
+      } else if (body && typeof body === "object") {
+        const obj = body as Record<string, unknown>;
+        const k = pickPriorityKey(obj);
+        if (k) bodyStr = `${k}=${String(obj[k] ?? "")}`;
+      }
+
+      const displayLabel = [queryStr || "", bodyStr || ""].filter(Boolean).join(" · ") || (method === "GET" ? "No query params" : id);
+      items.push({ id, file, source: mock?.meta.source, status: mock?.response.status, createdAt: mock?.meta.createdAt, displayLabel });
     }
 
     return { method, path: apiPath, variants: items };
@@ -565,8 +612,8 @@ export async function createApp(options: CreateAppOptions) {
         .send(match.mock.response.body);
     }
 
-    await storage.appendMiss({ at: new Date().toISOString(), method, path: fullPath, query, body, resolvedBy: config.aiEnabled ? "ai" : "none" });
     if (!config.aiEnabled) {
+      await storage.appendMiss({ at: new Date().toISOString(), method, path: fullPath, query, body, resolvedBy: "none" });
       pushRequestLog({
         at: new Date().toISOString(),
         method,
@@ -586,7 +633,7 @@ export async function createApp(options: CreateAppOptions) {
       limit: 5,
     });
 
-    const generated = await generateMockResponse({
+    const aiInput = {
       method,
       path: fullPath,
       query,
@@ -597,7 +644,27 @@ export async function createApp(options: CreateAppOptions) {
         ...variants.slice(0, 5).map((v) => ({ method, path: fullPath, responseBody: v.response.body, label: `same-endpoint:${method} ${fullPath}` })),
         ...similarExamples,
       ],
-    }, config);
+    };
+
+    const promptForLogs = config.aiStorePrompt ? buildPrompt(aiInput, config, new Date()) : undefined;
+
+    const generated = await generateMockResponse(aiInput, config);
+
+    if (!generated) {
+      await storage.appendMiss({ at: new Date().toISOString(), method, path: fullPath, query, body, resolvedBy: "none" });
+      pushRequestLog({
+        at: new Date().toISOString(),
+        method,
+        path: fullPath,
+        query,
+        match: "none",
+        status: 404,
+        prompt: promptForLogs,
+      });
+      return reply.code(404).send({ error: "No mock found" });
+    }
+
+    await storage.appendMiss({ at: new Date().toISOString(), method, path: fullPath, query, body, resolvedBy: "ai" });
 
     const openapiFileJson = path.join(storage.metaDir(), "openapi.json");
     const openapiFileYaml = path.join(storage.metaDir(), "openapi.yaml");

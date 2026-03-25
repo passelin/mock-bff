@@ -1,0 +1,45 @@
+info:
+  name: Create User
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: http://localhost:8787/api/users
+  body:
+    type: json
+    data: |
+      {
+        "username": "passelin",
+        "email": "pierre.asselin@example.com",
+        "phone": "+1-514-555-0199",
+
+        "firstName": "Pierre",
+        "lastName": "Asselin",
+        "fullName": "Pierre Asselin",
+
+        "avatarUrl": "https://example.com/avatars/1234.png",
+
+        "roles": ["admin", "manager"],
+        "status": "active",
+
+        "preferences": {
+          "locale": "fr-CA",
+          "theme": "dark",
+          "notifications": {
+            "email": true,
+            "sms": false,
+            "push": true
+          }
+        },
+
+        "createdAt": "2024-11-05T14:22:31.000Z",
+        "updatedAt": "2026-03-22T20:40:00.000Z"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

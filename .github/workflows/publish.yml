@@ -21,8 +21,11 @@ jobs:
           cache: npm
           registry-url: https://registry.npmjs.org
 
+      - name: Install npm 11
+        run: npm install -g npm@11
+
       - name: Install deps
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Build
         run: npm run build

@@ -18,8 +18,11 @@ jobs:
           node-version: 24
           cache: npm
 
+      - name: Install npm 11
+        run: npm install -g npm@11
+
       - name: Install deps
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Build admin
         run: npm run build:admin

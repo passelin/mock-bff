@@ -1,6 +1,6 @@
 {
-  "name": "mock-bff",
-  "version": "0.3.0",
+  "name": "@passelin/mock-bff",
+  "version": "0.4.0",
   "description": "Mock BFF server for UI modernization using HAR/OpenAPI + AI fallback",
   "type": "module",
   "bin": {
@@ -13,7 +13,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "concurrently --names server,admin --prefix-colors blue,green \"tsx watch src/server.ts\" \"vite build --watch --config admin/vite.config.ts\"",
+    "dev:server": "tsx watch src/server.ts",
     "dev:admin": "vite --config admin/vite.config.ts",
     "build": "tsc -p tsconfig.json && npm run build:admin",
     "build:admin": "vite build --config admin/vite.config.ts",
@@ -30,7 +31,7 @@
     "openapi",
     "ui-testing"
   ],
-  "author": "",
+  "author": "Pierre Asselin",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -55,11 +56,6 @@
     "dotenv": "^16.6.1",
     "fastify": "^5.0.0",
     "js-yaml": "^4.1.0",
-    "lucide-react": "^0.577.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "react-router-dom": "^7.13.1",
-    "swagger-ui-react": "^5.27.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -68,7 +64,13 @@
     "@types/react": "^19.2.14",
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.27",
+    "concurrently": "^9.2.1",
+    "lucide-react": "^0.577.0",
     "postcss": "^8.5.8",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^7.13.1",
+    "swagger-ui-react": "^5.27.0",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",

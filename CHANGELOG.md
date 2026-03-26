@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.0] - 2026-03-25
+
+### Changed
+- Renamed package to `@passelin/mock-bff`
+- Moved frontend-only dependencies (`react`, `react-dom`, `react-router-dom`, `lucide-react`, `swagger-ui-react`) to `devDependencies` — they are bundled into `admin/dist/` at build time and are not needed at runtime
+- `npm run dev` now starts the backend and Vite in watch mode concurrently — admin UI rebuilds automatically on source changes
+
+### Added
+- `dev:server` script to run only the backend server during development
+
+### Removed
+- Deleted dead code: `src/admin-ui.ts` (legacy CDN-based admin UI, unused since v0.2.0)
+
 ## [0.3.0] - 2026-03-22
 
 ### Added
@@ -23,7 +36,7 @@ All notable changes to this project will be documented in this file.
 ## [0.2.0] - 2026-03-22
 
 ### Added
-- Publishable npm package (`mock-bff`) with CLI bin (`mock-bff`)
+- Publishable npm package (`@passelin/mock-bff`) with CLI bin (`mock-bff`)
 - First-class admin app at `/-/admin` with routing
 - Variant review/editor workflow
 - Endpoint search + scrollable tables + clear endpoint/all actions
@@ -42,7 +55,7 @@ mock-bff --provider none
 
 ### Release checklist
 - Set `repository`, `homepage`, and `bugs` fields in `package.json` after creating the GitHub repo.
-- Confirm package name availability on npm (`mock-bff`).
+- Confirm package name availability on npm (`@passelin/mock-bff`).
 - Run:
   - `npm run build`
   - `npm test`

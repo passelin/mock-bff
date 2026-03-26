@@ -286,7 +286,6 @@ export async function generateMockResponse(
     const result = await generateText({
       model,
       prompt,
-      // maxOutputTokens: 1200,
       providerOptions:
         config.aiSeed !== undefined
           ? { openai: { seed: config.aiSeed } }

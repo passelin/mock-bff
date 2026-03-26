@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.3] - 2026-03-26
+
+### Fixed
+- Served admin UI from packaged `admin/dist` when running via `npx` and the selected `--root` does not contain an admin build
+
 ## [0.4.2] - 2026-03-26
 
 ### Fixed

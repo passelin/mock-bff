@@ -2,8 +2,9 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { access, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { MockStorage } from "./storage.js";
 import { isApiLikeRequest, parseHar } from "./har.js";
@@ -135,6 +136,23 @@ async function listOllamaModels(base: string): Promise<string[]> {
 export interface CreateAppOptions {
   rootDir: string;
   appName: string;
+}
+
+async function resolveAdminDistDir(rootDir: string): Promise<string> {
+  const preferred = path.join(rootDir, "admin", "dist");
+  try {
+    await access(path.join(preferred, "index.html"));
+    return preferred;
+  } catch {}
+
+  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+  const packaged = path.resolve(moduleDir, "..", "admin", "dist");
+  try {
+    await access(path.join(packaged, "index.html"));
+    return packaged;
+  } catch {}
+
+  return preferred;
 }
 
 function normalizePathTemplate(apiPath: string): string {
@@ -330,7 +348,7 @@ export async function createApp(options: CreateAppOptions) {
     }
   });
 
-  const adminDistDir = path.join(options.rootDir, "admin", "dist");
+  const adminDistDir = await resolveAdminDistDir(options.rootDir);
   await app.register(fastifyStatic, {
     root: adminDistDir,
     prefix: "/-/admin/",

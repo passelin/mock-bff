@@ -16,6 +16,7 @@
     "dev": "concurrently --names server,admin --prefix-colors blue,green \"tsx watch src/server.ts\" \"vite build --watch --config admin/vite.config.ts\"",
     "dev:server": "tsx watch src/server.ts",
     "dev:admin": "vite --config admin/vite.config.ts",
+    "prebuild": "rm -rf dist admin/dist",
     "build": "tsc -p tsconfig.json && npm run build:admin",
     "build:admin": "vite build --config admin/vite.config.ts",
     "start": "node dist/server.js",

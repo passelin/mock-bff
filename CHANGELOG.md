@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.2] - 2026-03-26
+
+### Fixed
+- Synced `package-lock.json` with `package.json` to fix `npm ci` failure in the publish workflow
+
 ## [0.4.1] - 2026-03-26
 
 ### Added

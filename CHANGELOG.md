@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.1] - 2026-03-26
+
+### Added
+- Automated npm publish via GitHub Actions on release
+- `prebuild` script to clean `dist/` before every build
+
+### Changed
+- Hover animation on candy heart logo
+- Improved `npm run dev` workflow: admin UI auto-rebuilds via `vite build --watch`
+- Added `dev:server` script for backend-only development
+
 ## [0.4.0] - 2026-03-25
 
 ### Changed

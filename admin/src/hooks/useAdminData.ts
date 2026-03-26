@@ -5,14 +5,19 @@ export function useAdminData(defaultPromptTemplate: string) {
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [requests, setRequests] = useState<ReqLog[]>([]);
   const [misses, setMisses] = useState<any[]>([]);
+  const [serverVersion, setServerVersion] = useState("unknown");
   const [configText, setConfigText] = useState("");
   const [promptTemplate, setPromptTemplate] = useState(defaultPromptTemplate);
   const [showPromptHints, setShowPromptHints] = useState(false);
   const [providerInfo, setProviderInfo] = useState<ProviderInfo>({});
   const [providerName, setProviderName] = useState("openai");
   const [providerModel, setProviderModel] = useState("gpt-5.4-mini");
-  const [openaiBaseUrl, setOpenaiBaseUrl] = useState("https://api.openai.com/v1");
-  const [anthropicBaseUrl, setAnthropicBaseUrl] = useState("https://api.anthropic.com");
+  const [openaiBaseUrl, setOpenaiBaseUrl] = useState(
+    "https://api.openai.com/v1",
+  );
+  const [anthropicBaseUrl, setAnthropicBaseUrl] = useState(
+    "https://api.anthropic.com",
+  );
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://127.0.0.1:11434");
   const [context, setContext] = useState("");
   const [toast, setToast] = useState("");
@@ -20,7 +25,11 @@ export function useAdminData(defaultPromptTemplate: string) {
   const [promptDialog, setPromptDialog] = useState<string | null>(null);
   const [harFile, setHarFile] = useState<File | null>(null);
   const [openApiFile, setOpenApiFile] = useState<File | null>(null);
-  const [openApiDoc, setOpenApiDoc] = useState<{ exists: boolean; format?: string; raw?: string }>({ exists: false });
+  const [openApiDoc, setOpenApiDoc] = useState<{
+    exists: boolean;
+    format?: string;
+    raw?: string;
+  }>({ exists: false });
 
   function showToast(msg: string) {
     setToast(msg);
@@ -29,7 +38,10 @@ export function useAdminData(defaultPromptTemplate: string) {
 
   async function loadEndpoints() {
     const rows = (await (await fetch("/-/api/endpoints")).json()) as Endpoint[];
-    rows.sort((a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method));
+    rows.sort(
+      (a, b) =>
+        a.path.localeCompare(b.path) || a.method.localeCompare(b.method),
+    );
     setEndpoints(rows);
   }
   async function loadRequests() {
@@ -43,12 +55,24 @@ export function useAdminData(defaultPromptTemplate: string) {
   async function loadConfig() {
     const cfg = await (await fetch("/-/api/config")).json();
     setConfigText(JSON.stringify(cfg, null, 2));
-    setPromptTemplate(cfg.aiPromptTemplate && String(cfg.aiPromptTemplate).trim() ? cfg.aiPromptTemplate : defaultPromptTemplate);
+    setPromptTemplate(
+      cfg.aiPromptTemplate && String(cfg.aiPromptTemplate).trim()
+        ? cfg.aiPromptTemplate
+        : defaultPromptTemplate,
+    );
     setProviderName(cfg.aiProvider ?? "openai");
     setProviderModel(cfg.aiModel ?? "gpt-5.4-mini");
-    setOpenaiBaseUrl(cfg.providerBaseUrls?.openai ?? "https://api.openai.com/v1");
-    setAnthropicBaseUrl(cfg.providerBaseUrls?.anthropic ?? "https://api.anthropic.com");
+    setOpenaiBaseUrl(
+      cfg.providerBaseUrls?.openai ?? "https://api.openai.com/v1",
+    );
+    setAnthropicBaseUrl(
+      cfg.providerBaseUrls?.anthropic ?? "https://api.anthropic.com",
+    );
     setOllamaBaseUrl(cfg.providerBaseUrls?.ollama ?? "http://127.0.0.1:11434");
+  }
+  async function loadHealth() {
+    const data = await (await fetch("/-/api/health")).json();
+    setServerVersion(data.version || "unknown");
   }
   async function loadProviders() {
     const data = await (await fetch("/-/api/providers")).json();
@@ -60,12 +84,36 @@ export function useAdminData(defaultPromptTemplate: string) {
   }
 
   async function loadOpenApiDoc() {
-    const d = await (await fetch('/-/api/openapi')).json();
+    const d = await (await fetch("/-/api/openapi")).json();
     setOpenApiDoc(d ?? { exists: false });
   }
 
+  async function deleteOpenApiDoc() {
+    setBusy(true);
+    try {
+      const res = await fetch("/-/api/openapi", { method: "DELETE" });
+      if (!res.ok) throw new Error("delete failed");
+      setOpenApiFile(null);
+      await loadOpenApiDoc();
+      showToast("OpenAPI contract deleted");
+    } catch {
+      showToast("Failed to delete OpenAPI contract");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function refresh() {
-    await Promise.all([loadEndpoints(), loadRequests(), loadMisses(), loadConfig(), loadProviders(), loadContext(), loadOpenApiDoc()]);
+    await Promise.all([
+      loadEndpoints(),
+      loadRequests(),
+      loadMisses(),
+      loadConfig(),
+      loadHealth(),
+      loadProviders(),
+      loadContext(),
+      loadOpenApiDoc(),
+    ]);
   }
 
   useEffect(() => {
@@ -80,7 +128,12 @@ export function useAdminData(defaultPromptTemplate: string) {
 
   const stats = useMemo(() => {
     const totalVariants = endpoints.reduce((acc, e) => acc + e.variants, 0);
-    return { endpoints: endpoints.length, variants: totalVariants, misses: misses.length, requests: requests.length };
+    return {
+      endpoints: endpoints.length,
+      variants: totalVariants,
+      misses: misses.length,
+      requests: requests.length,
+    };
   }, [endpoints, misses, requests]);
 
   const configError = useMemo(() => {
@@ -105,7 +158,11 @@ export function useAdminData(defaultPromptTemplate: string) {
     showToast("Misses cleared");
   }
 
-  async function uploadFile(route: string, file: File | null, successMsg: string) {
+  async function uploadFile(
+    route: string,
+    file: File | null,
+    successMsg: string,
+  ) {
     if (!file) return;
     setBusy(true);
     try {
@@ -182,19 +239,58 @@ export function useAdminData(defaultPromptTemplate: string) {
   }
 
   return {
-    endpoints, requests, misses,
-    configText, setConfigText,
-    promptTemplate, setPromptTemplate,
-    showPromptHints, setShowPromptHints,
-    providerInfo, providerName, setProviderName, providerModel, setProviderModel,
-    openaiBaseUrl, setOpenaiBaseUrl, anthropicBaseUrl, setAnthropicBaseUrl, ollamaBaseUrl, setOllamaBaseUrl,
-    context, setContext,
-    toast, showToast,
-    busy, setBusy,
-    promptDialog, setPromptDialog,
-    harFile, setHarFile, openApiFile, setOpenApiFile, openApiDoc,
-    stats, configError,
-    refresh, loadEndpoints, loadRequests, loadMisses, loadConfig, loadProviders, loadContext, loadOpenApiDoc,
-    clearLogs, clearMisses, uploadFile, setAiStorePrompt, getAiStorePrompt, saveConfig, saveContext,
+    endpoints,
+    requests,
+    misses,
+    serverVersion,
+    configText,
+    setConfigText,
+    promptTemplate,
+    setPromptTemplate,
+    showPromptHints,
+    setShowPromptHints,
+    providerInfo,
+    providerName,
+    setProviderName,
+    providerModel,
+    setProviderModel,
+    openaiBaseUrl,
+    setOpenaiBaseUrl,
+    anthropicBaseUrl,
+    setAnthropicBaseUrl,
+    ollamaBaseUrl,
+    setOllamaBaseUrl,
+    context,
+    setContext,
+    toast,
+    showToast,
+    busy,
+    setBusy,
+    promptDialog,
+    setPromptDialog,
+    harFile,
+    setHarFile,
+    openApiFile,
+    setOpenApiFile,
+    openApiDoc,
+    stats,
+    configError,
+    refresh,
+    loadEndpoints,
+    loadRequests,
+    loadMisses,
+    loadConfig,
+    loadHealth,
+    loadProviders,
+    loadContext,
+    loadOpenApiDoc,
+    clearLogs,
+    clearMisses,
+    uploadFile,
+    deleteOpenApiDoc,
+    setAiStorePrompt,
+    getAiStorePrompt,
+    saveConfig,
+    saveContext,
   };
 }

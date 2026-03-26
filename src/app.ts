@@ -2,7 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { MockStorage } from "./storage.js";
@@ -233,6 +233,15 @@ export async function createApp(options: CreateAppOptions) {
   const app = Fastify({ logger: false });
   const storage = new MockStorage(path.join(options.rootDir, "mocks"));
   await storage.ensureLayout();
+  let packageVersion = "unknown";
+  try {
+    const packageJson = await readFile(
+      path.join(options.rootDir, "package.json"),
+      "utf8",
+    );
+    const parsed = JSON.parse(packageJson) as { version?: string };
+    if (parsed.version) packageVersion = parsed.version;
+  } catch {}
 
   const maxRequestLogs = Number(process.env.MOCK_MAX_REQUEST_LOGS || 500);
   const requestLogs: Array<{
@@ -251,7 +260,10 @@ export async function createApp(options: CreateAppOptions) {
     prompt?: string;
   }> = [];
 
-  const sseClients = new Set<{ id: string; send: (event: string, data: unknown) => void }>();
+  const sseClients = new Set<{
+    id: string;
+    send: (event: string, data: unknown) => void;
+  }>();
 
   const emitLiveEvent = (event: string, data: unknown = {}) => {
     for (const c of sseClients) c.send(event, data);
@@ -276,7 +288,13 @@ export async function createApp(options: CreateAppOptions) {
     if (requestLogs.length > maxRequestLogs) {
       requestLogs.splice(0, requestLogs.length - maxRequestLogs);
     }
-    emitLiveEvent("request", { at: entry.at, method: entry.method, path: entry.path, status: entry.status, match: entry.match });
+    emitLiveEvent("request", {
+      at: entry.at,
+      method: entry.method,
+      path: entry.path,
+      status: entry.status,
+      match: entry.match,
+    });
   };
 
   const initialConfig = await storage.readConfig();
@@ -335,7 +353,11 @@ export async function createApp(options: CreateAppOptions) {
 
   app.get("/-/admin", serveAdminIndex);
 
-  app.get("/-/api/health", async () => ({ ok: true, app: options.appName }));
+  app.get("/-/api/health", async () => ({
+    ok: true,
+    app: options.appName,
+    version: packageVersion,
+  }));
   app.get("/-/api/config", async () => storage.readConfig());
 
   app.patch<{ Body: Record<string, unknown> }>("/-/api/config", async (req) => {
@@ -437,6 +459,15 @@ export async function createApp(options: CreateAppOptions) {
     return { exists: false };
   });
 
+  app.delete("/-/api/openapi", async () => {
+    await Promise.all([
+      rm(path.join(storage.metaDir(), "openapi.json"), { force: true }),
+      rm(path.join(storage.metaDir(), "openapi.yaml"), { force: true }),
+    ]);
+    emitLiveEvent("openapi-updated", { deleted: true });
+    return { deleted: true };
+  });
+
   app.post("/-/api/har", async (req, reply) => {
     const part = await req.file();
     if (!part) return reply.code(400).send({ error: "Missing HAR file" });
@@ -462,7 +493,10 @@ export async function createApp(options: CreateAppOptions) {
     }
 
     await storage.writeIndex(index);
-    emitLiveEvent("endpoints-updated", { source: "har", imported: parsed.length });
+    emitLiveEvent("endpoints-updated", {
+      source: "har",
+      imported: parsed.length,
+    });
     return { imported: parsed.length };
   });
 
@@ -492,7 +526,11 @@ export async function createApp(options: CreateAppOptions) {
         (e) => !(e.method === method && e.path === apiPath),
       );
       await storage.writeIndex(next);
-      emitLiveEvent("endpoints-updated", { action: "endpoint-deleted", method, path: apiPath });
+      emitLiveEvent("endpoints-updated", {
+        action: "endpoint-deleted",
+        method,
+        path: apiPath,
+      });
       return { cleared: true, method, path: apiPath };
     },
   );
@@ -640,8 +678,17 @@ export async function createApp(options: CreateAppOptions) {
         await storage.writeIndex(idx);
       }
 
-      emitLiveEvent("variants-updated", { action: "variant-deleted", method, path: apiPath, id });
-      emitLiveEvent("endpoints-updated", { action: "variant-deleted", method, path: apiPath });
+      emitLiveEvent("variants-updated", {
+        action: "variant-deleted",
+        method,
+        path: apiPath,
+        id,
+      });
+      emitLiveEvent("endpoints-updated", {
+        action: "variant-deleted",
+        method,
+        path: apiPath,
+      });
       return { deleted: true };
     },
   );
@@ -683,8 +730,17 @@ export async function createApp(options: CreateAppOptions) {
       });
     }
 
-    emitLiveEvent("variants-updated", { action: "variant-saved", method, path: apiPath, id });
-    emitLiveEvent("endpoints-updated", { action: "variant-saved", method, path: apiPath });
+    emitLiveEvent("variants-updated", {
+      action: "variant-saved",
+      method,
+      path: apiPath,
+      id,
+    });
+    emitLiveEvent("endpoints-updated", {
+      action: "variant-saved",
+      method,
+      path: apiPath,
+    });
     return { saved: true };
   });
 
@@ -933,14 +989,12 @@ export async function createApp(options: CreateAppOptions) {
         >,
         context: mergedContext,
         nearbyExamples: [
-          ...variants
-            .slice(0, 5)
-            .map((v) => ({
-              method,
-              path: fullPath,
-              responseBody: v.response.body,
-              label: `same-endpoint:${method} ${fullPath}`,
-            })),
+          ...variants.slice(0, 5).map((v) => ({
+            method,
+            path: fullPath,
+            responseBody: v.response.body,
+            label: `same-endpoint:${method} ${fullPath}`,
+          })),
           ...similarExamples,
         ],
       };
@@ -1027,8 +1081,17 @@ export async function createApp(options: CreateAppOptions) {
       );
       const index = await storage.readIndex();
       await storage.writeIndex(upsertIndex(index, method, fullPath, savedPath));
-      emitLiveEvent("variants-updated", { action: "variant-generated", method, path: fullPath, id: variantName });
-      emitLiveEvent("endpoints-updated", { action: "variant-generated", method, path: fullPath });
+      emitLiveEvent("variants-updated", {
+        action: "variant-generated",
+        method,
+        path: fullPath,
+        id: variantName,
+      });
+      emitLiveEvent("endpoints-updated", {
+        action: "variant-generated",
+        method,
+        path: fullPath,
+      });
 
       pushRequestLog({
         at: new Date().toISOString(),

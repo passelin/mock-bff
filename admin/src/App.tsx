@@ -5,6 +5,7 @@ import {
   ListTree,
   Logs,
   Menu,
+  Plus,
   Route as RouteIcon,
   Settings,
   X,
@@ -14,6 +15,7 @@ import { Card } from "./components/Card";
 import { Tab } from "./components/Tab";
 import { PromptDialog } from "./components/PromptDialog";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { CreateVariantDialog } from "./components/CreateVariantDialog";
 import { EndpointsPage } from "./pages/EndpointsPage";
 import { LogsPage } from "./pages/LogsPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -110,6 +112,7 @@ export function App() {
     setShowPromptHints,
     providerInfo,
     providerName,
+    serverVersion,
     setProviderName,
     providerModel,
     setProviderModel,
@@ -141,6 +144,7 @@ export function App() {
     clearMisses,
     loadProviders,
     uploadFile,
+    deleteOpenApiDoc: deleteOpenApiDocRaw,
     setAiStorePrompt,
     getAiStorePrompt,
     saveConfig,
@@ -164,12 +168,12 @@ export function App() {
   const [createStatus, setCreateStatus] = useState(200);
   const [createBody, setCreateBody] = useState('{\n  "ok": true\n}');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const editorSplit = 40;
   const [endpointSearch, setEndpointSearch] = useState("");
   const [selectedEndpointKeys, setSelectedEndpointKeys] = useState<
     Record<string, boolean>
   >({});
   const [liveConnected, setLiveConnected] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [confirmState, setConfirmState] = useState<{
     open: boolean;
     title?: string;
@@ -483,6 +487,16 @@ export function App() {
     await clearMisses();
   }
 
+  async function deleteOpenApiDocWithConfirm() {
+    const ok = await confirmAction(
+      "Delete the saved OpenAPI contract?",
+      "Delete OpenAPI contract",
+      "Delete",
+    );
+    if (!ok) return;
+    await deleteOpenApiDocRaw();
+  }
+
   async function createVariant() {
     setBusy(true);
     try {
@@ -518,6 +532,7 @@ export function App() {
       await loadEndpoints();
       await loadVariants(method, path);
       setSelectedVariantId(id);
+      setCreateDialogOpen(false);
       showToast("Endpoint/variant created");
     } catch {
       showToast("Create failed (check JSON/path)");
@@ -534,17 +549,25 @@ export function App() {
             <img
               src={bffCandyHeartLogo}
               alt="Mock BFF logo"
-              className="h-6 w-6"
+              className="h-8 w-8"
             />
             <div>
-              <h1 className="text-sm sm:text-base font-semibold tracking-tight">
-                Mock BFF Admin
-              </h1>
-              <div className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-zinc-400">
+              <div className="flex items-center gap-2">
+                <h1 className="text-sm sm:text-base font-semibold tracking-tight">
+                  Mock BFF
+                </h1>
                 <span
-                  className={`inline-block h-2 w-2 rounded-full ${liveConnected ? "bg-emerald-400" : "bg-rose-400"}`}
-                />
-                {liveConnected ? "Live connected" : "Live disconnected"}
+                  className="relative inline-flex h-3 w-3 items-center justify-center"
+                  title={`${liveConnected ? "Connected" : "Disconnected"} · ${serverVersion}`}
+                  aria-label={`${liveConnected ? "Connected" : "Disconnected"}, server version ${serverVersion}`}
+                >
+                  <span
+                    className={`absolute h-3 w-3 rounded-full ${liveConnected ? "bg-emerald-400/30" : "bg-rose-400/30"}`}
+                  />
+                  <span
+                    className={`relative h-2 w-2 rounded-full ${liveConnected ? "bg-emerald-400" : "bg-rose-400"}`}
+                  />
+                </span>
               </div>
             </div>
           </div>
@@ -682,17 +705,6 @@ export function App() {
             element={
               <VariantsPage
                 busy={busy}
-                createMethod={createMethod}
-                setCreateMethod={setCreateMethod}
-                createPath={createPath}
-                setCreatePath={setCreatePath}
-                createVariantId={createVariantId}
-                setCreateVariantId={setCreateVariantId}
-                createStatus={createStatus}
-                setCreateStatus={setCreateStatus}
-                createBody={createBody}
-                setCreateBody={setCreateBody}
-                createVariant={createVariant}
                 filteredEndpoints={filteredEndpoints}
                 endpointSearch={endpointSearch}
                 setEndpointSearch={setEndpointSearch}
@@ -702,10 +714,16 @@ export function App() {
                 toggleEndpointSelection={toggleEndpointSelection}
                 selectedMethod={selectedMethod}
                 selectedPath={selectedPath}
+                openCreateDialog={() => {
+                  if (selectedMethod && selectedPath) {
+                    setCreateMethod(selectedMethod);
+                    setCreatePath(selectedPath);
+                  }
+                  setCreateDialogOpen(true);
+                }}
                 loadVariants={loadVariants}
                 clearSelectedEndpoints={clearSelectedEndpoints}
                 clearEndpoint={clearEndpoint}
-                editorSplit={editorSplit}
                 variantList={variantList}
                 selectedVariantId={selectedVariantId}
                 selectVariant={selectVariant}
@@ -739,6 +757,7 @@ export function App() {
                 openApiFile={openApiFile}
                 setOpenApiFile={setOpenApiFile}
                 uploadFile={uploadFile}
+                deleteOpenApiDoc={deleteOpenApiDocWithConfirm}
                 openApiDoc={openApiDoc}
                 loadOpenApiDoc={loadOpenApiDoc}
               />
@@ -786,6 +805,22 @@ export function App() {
             showToast={showToast}
           />
         ) : null}
+        <CreateVariantDialog
+          open={createDialogOpen}
+          busy={busy}
+          createMethod={createMethod}
+          setCreateMethod={setCreateMethod}
+          createPath={createPath}
+          setCreatePath={setCreatePath}
+          createVariantId={createVariantId}
+          setCreateVariantId={setCreateVariantId}
+          createStatus={createStatus}
+          setCreateStatus={setCreateStatus}
+          createBody={createBody}
+          setCreateBody={setCreateBody}
+          onCreate={createVariant}
+          onClose={() => setCreateDialogOpen(false)}
+        />
         <ConfirmDialog
           open={confirmState.open}
           title={confirmState.title}

@@ -40,6 +40,7 @@ export function LogsPage(props: {
                   <th className="px-3 py-2 text-left">Path</th>
                   <th className="px-3 py-2 text-left">Match</th>
                   <th className="px-3 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-left">AI Error</th>
                   <th className="px-3 py-2 text-left">Prompt</th>
                 </tr>
               </thead>
@@ -56,6 +57,13 @@ export function LogsPage(props: {
                     <td className="px-3 py-2 font-mono break-all">{r.path}</td>
                     <td className="px-3 py-2">{r.match}</td>
                     <td className="px-3 py-2">{r.status}</td>
+                    <td className="px-3 py-2">
+                      {r.aiError ? (
+                        <span className="text-rose-400 font-mono">{r.aiError}</span>
+                      ) : (
+                        <span className="text-zinc-500">—</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2">
                       {r.prompt ? (
                         <button

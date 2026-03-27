@@ -63,6 +63,17 @@ export interface IndexEntry {
   defaultVariant?: string;
 }
 
+export interface RequestLogEntry {
+  at: string;
+  method: string;
+  path: string;
+  query: Record<string, string | string[]>;
+  match: "exact" | "fuzzy" | "default" | "generated" | "generated-invalid" | "none";
+  status: number;
+  prompt?: string;
+  aiError?: string;
+}
+
 export interface MissLogEntry {
   at: string;
   method: string;

@@ -9,5 +9,15 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, 'dist'),
     emptyOutDir: true,
+    chunkSizeWarningLimit: 1400,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          vendor: ['lucide-react'],
+          'swagger-ui': ['swagger-ui-react'],
+        },
+      },
+    },
   },
 });

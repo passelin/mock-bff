@@ -12,6 +12,7 @@ Options:
   -p, --port <number>         Server port (default: 8787)
   -H, --host <host>           Server host (default: 0.0.0.0)
   -r, --root <path>           Project root directory (default: cwd)
+      --mocks-dir <path>      Mocks directory (default: <root>/mocks)
   -a, --app-name <name>       App name label (default: local-app)
       --provider <name>       AI provider: openai|anthropic|ollama|none (default: openai)
       --model <id>            AI model id (provider-specific)
@@ -49,6 +50,7 @@ function parseArgs(argv: string[]) {
     else if (a === "--model") out.model = eat();
     else if (a === "--openai-base-url") out.openaiBaseUrl = eat();
     else if (a === "--anthropic-base-url") out.anthropicBaseUrl = eat();
+    else if (a === "--mocks-dir") out.mocksDir = eat();
     else if (a === "--ollama-base-url") out.ollamaBaseUrl = eat();
     else throw new Error(`Unknown option: ${a}`);
   }
@@ -72,12 +74,14 @@ async function main() {
     process.env.OLLAMA_BASE_URL = String(args.ollamaBaseUrl);
 
   const rootDir = args.root ? path.resolve(String(args.root)) : process.cwd();
+  const mocksDir = args.mocksDir ? path.resolve(String(args.mocksDir)) : undefined;
 
   const { host, port } = await startServer({
     host: args.host ? String(args.host) : undefined,
     port: args.port ? Number(args.port) : undefined,
     appName: args.appName ? String(args.appName) : undefined,
     rootDir,
+    mocksDir,
   });
 
   console.log(`mock-bff running at http://${host}:${port}`);

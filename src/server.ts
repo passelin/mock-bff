@@ -6,6 +6,7 @@ export interface ServerStartOptions {
   host?: string;
   appName?: string;
   rootDir?: string;
+  mocksDir?: string;
 }
 
 export async function startServer(opts: ServerStartOptions = {}) {
@@ -13,8 +14,9 @@ export async function startServer(opts: ServerStartOptions = {}) {
   const host = opts.host ?? process.env.HOST ?? "0.0.0.0";
   const appName = opts.appName ?? process.env.MOCK_APP_NAME ?? "local-app";
   const rootDir = opts.rootDir ?? process.env.MOCK_ROOT_DIR ?? process.cwd();
+  const mocksDir = opts.mocksDir ?? process.env.MOCK_MOCKS_DIR;
 
-  const app = await createApp({ rootDir, appName });
+  const app = await createApp({ rootDir, appName, mocksDir });
   await app.listen({ port, host });
 
   return { app, port, host };

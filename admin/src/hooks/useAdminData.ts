@@ -78,6 +78,10 @@ export function useAdminData(defaultPromptTemplate: string) {
     const data = await (await fetch("/-/api/providers")).json();
     setProviderInfo(data ?? {});
   }
+  async function refreshOllamaModels() {
+    await fetch("/-/api/providers/ollama/refresh", { method: "POST" });
+    await loadProviders();
+  }
   async function loadContext() {
     const d = await (await fetch("/-/api/context")).json();
     setContext(d.context || "");
@@ -282,6 +286,7 @@ export function useAdminData(defaultPromptTemplate: string) {
     loadConfig,
     loadHealth,
     loadProviders,
+    refreshOllamaModels,
     loadContext,
     loadOpenApiDoc,
     clearLogs,

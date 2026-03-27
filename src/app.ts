@@ -12,11 +12,17 @@ import { buildVariantName, matchMock } from "./matcher.js";
 import { buildPrompt, generateMockResponse } from "./ai.js";
 import { normalizePath, normalizeQuery } from "./utils.js";
 import {
+  listOpenAiModels,
+  listAnthropicModels,
+  listOllamaModels,
+  ollamaFallbackModels,
+} from "./providers.js";
+import {
   buildOpenApiHint,
   loadOpenApiFile,
   validateResponseWithOpenApi,
 } from "./openapi.js";
-import type { AppConfig, IndexEntry, StoredMock } from "./types.js";
+import type { AppConfig, IndexEntry, RequestLogEntry, StoredMock } from "./types.js";
 
 const DROPPED_REPLAY_HEADERS = [
   "content-encoding",
@@ -45,97 +51,11 @@ function maskApiKey(value?: string): string | null {
   return `${trimmed.slice(0, 6)}…`;
 }
 
-function normalizeModelList(models: string[]): string[] {
-  return [...new Set(models)]
-    .filter((m) => m)
-    .sort((a, b) => a.localeCompare(b));
-}
-
-function knownModels(
-  provider: "openai" | "anthropic" | "ollama" | "none",
-): string[] {
-  if (provider === "openai")
-    return normalizeModelList(["gpt-5.4", "gpt-5.4-mini", "gpt-4.1", "gpt-4o"]);
-  if (provider === "anthropic")
-    return normalizeModelList([
-      "claude-3-7-sonnet-latest",
-      "claude-3-5-sonnet-latest",
-      "claude-3-5-haiku-latest",
-    ]);
-  if (provider === "ollama")
-    return normalizeModelList(["llama3.1:8b", "qwen2.5:7b", "mistral:7b"]);
-  return [];
-}
-
-function ollamaTagsUrl(base: string): string {
-  const normalized = base.replace(/\/+$/, "").replace(/\/v1$/, "");
-  return `${normalized}/api/tags`;
-}
-
-function ollamaShowUrl(base: string): string {
-  const normalized = base.replace(/\/+$/, "").replace(/\/v1$/, "");
-  return `${normalized}/api/show`;
-}
-
-async function ollamaCapabilities(
-  base: string,
-  model: string,
-): Promise<string[]> {
-  try {
-    const res = await fetch(ollamaShowUrl(base), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ model }),
-    });
-    if (!res.ok) return [];
-    const data = (await res.json()) as {
-      capabilities?: string[];
-      details?: { capabilities?: string[] };
-    };
-    return data.capabilities ?? data.details?.capabilities ?? [];
-  } catch {
-    return [];
-  }
-}
-
-function keepByCapabilities(caps: string[]): boolean {
-  if (!caps || caps.length === 0) return true; // unknown => keep
-  const c = caps.map((x) => x.toLowerCase());
-  const hasCompletion =
-    c.includes("completion") || c.includes("generate") || c.includes("text");
-  const onlyVision = c.includes("vision") && !hasCompletion;
-  const onlyFunction =
-    (c.includes("tools") ||
-      c.includes("function") ||
-      c.includes("tool-calling")) &&
-    !hasCompletion;
-  return !onlyVision && !onlyFunction;
-}
-
-async function listOllamaModels(base: string): Promise<string[]> {
-  try {
-    const res = await fetch(ollamaTagsUrl(base));
-    if (!res.ok) return [];
-    const data = (await res.json()) as { models?: Array<{ name?: string }> };
-    const names = (data.models ?? [])
-      .map((m) => m.name)
-      .filter((x): x is string => Boolean(x));
-
-    const kept: string[] = [];
-    for (const name of names) {
-      const caps = await ollamaCapabilities(base, name);
-      if (keepByCapabilities(caps)) kept.push(name);
-    }
-
-    return normalizeModelList(kept);
-  } catch {
-    return [];
-  }
-}
 
 export interface CreateAppOptions {
   rootDir: string;
   appName: string;
+  mocksDir?: string;
 }
 
 async function resolveAdminDistDir(rootDir: string): Promise<string> {
@@ -223,6 +143,20 @@ function shouldWriteContextInsight(args: {
   );
 }
 
+function pickPriorityKey(obj: Record<string, unknown>): string | undefined {
+  const keys = Object.keys(obj);
+  if (keys.length === 0) return undefined;
+  const exactId = keys.find((k) => k.toLowerCase() === "id");
+  if (exactId) return exactId;
+  const starId = keys.find((k) => k.toLowerCase().endsWith("id"));
+  if (starId) return starId;
+  const name = keys.find((k) => k.toLowerCase() === "name");
+  if (name) return name;
+  const type = keys.find((k) => k.toLowerCase() === "type");
+  if (type) return type;
+  return keys[0];
+}
+
 function upsertIndex(
   entries: IndexEntry[],
   method: string,
@@ -249,12 +183,13 @@ function upsertIndex(
 
 export async function createApp(options: CreateAppOptions) {
   const app = Fastify({ logger: false });
-  const storage = new MockStorage(path.join(options.rootDir, "mocks"));
+  const storage = new MockStorage(options.mocksDir ?? path.join(options.rootDir, "mocks"));
   await storage.ensureLayout();
   let packageVersion = "unknown";
   try {
+    const moduleDir = path.dirname(fileURLToPath(import.meta.url));
     const packageJson = await readFile(
-      path.join(options.rootDir, "package.json"),
+      path.resolve(moduleDir, "..", "package.json"),
       "utf8",
     );
     const parsed = JSON.parse(packageJson) as { version?: string };
@@ -262,46 +197,16 @@ export async function createApp(options: CreateAppOptions) {
   } catch {}
 
   const maxRequestLogs = Number(process.env.MOCK_MAX_REQUEST_LOGS || 500);
-  const requestLogs: Array<{
-    at: string;
-    method: string;
-    path: string;
-    query: Record<string, string | string[]>;
-    match:
-      | "exact"
-      | "fuzzy"
-      | "default"
-      | "generated"
-      | "generated-invalid"
-      | "none";
-    status: number;
-    prompt?: string;
-  }> = [];
+  const requestLogs: RequestLogEntry[] = [];
 
-  const sseClients = new Set<{
-    id: string;
-    send: (event: string, data: unknown) => void;
-  }>();
+  const sseClients = new Map<string, (event: string, data: unknown) => void>();
 
   const emitLiveEvent = (event: string, data: unknown = {}) => {
-    for (const c of sseClients) c.send(event, data);
+    if (sseClients.size === 0) return;
+    for (const send of sseClients.values()) send(event, data);
   };
 
-  const pushRequestLog = (entry: {
-    at: string;
-    method: string;
-    path: string;
-    query: Record<string, string | string[]>;
-    match:
-      | "exact"
-      | "fuzzy"
-      | "default"
-      | "generated"
-      | "generated-invalid"
-      | "none";
-    status: number;
-    prompt?: string;
-  }) => {
+  const pushRequestLog = (entry: RequestLogEntry) => {
     requestLogs.push(entry);
     if (requestLogs.length > maxRequestLogs) {
       requestLogs.splice(0, requestLogs.length - maxRequestLogs);
@@ -355,21 +260,14 @@ export async function createApp(options: CreateAppOptions) {
     decorateReply: false,
   });
 
-  const serveAdminIndex = async (_req: any, reply: any) => {
+  app.get("/-/admin", async (_req, reply) => {
     try {
-      const html = await readFile(
-        path.join(adminDistDir, "index.html"),
-        "utf8",
-      );
+      const html = await readFile(path.join(adminDistDir, "index.html"), "utf8");
       return reply.type("text/html").send(html);
     } catch {
-      return reply
-        .code(500)
-        .send({ error: "Admin UI not built. Run: npm run build:admin" });
+      return reply.code(500).send({ error: "Admin UI not built. Run: npm run build:admin" });
     }
-  };
-
-  app.get("/-/admin", serveAdminIndex);
+  });
 
   app.get("/-/api/health", async () => ({
     ok: true,
@@ -401,50 +299,85 @@ export async function createApp(options: CreateAppOptions) {
     return next;
   });
 
-  app.get("/-/api/providers", async () => {
-    const cfg = await storage.readConfig();
-    const ollamaBase =
-      process.env.OLLAMA_BASE_URL ??
-      cfg.providerBaseUrls?.ollama ??
-      "http://127.0.0.1:11434";
-    const ollamaModels = await listOllamaModels(ollamaBase);
+  // Provider model cache — openai/anthropic cached for server lifetime,
+  // ollama cached per base URL and refreshable via POST /-/api/providers/ollama/refresh.
+  const providerCache: {
+    openai?: { models: string[]; disabled: boolean };
+    anthropic?: { models: string[]; disabled: boolean };
+    ollama?: { models: string[]; base: string };
+  } = {};
 
+  function buildProvidersResponse(
+    cfg: Awaited<ReturnType<typeof storage.readConfig>>,
+    openai: { models: string[]; disabled: boolean },
+    anthropic: { models: string[]; disabled: boolean },
+    ollamaModels: string[],
+    openaiBase: string | undefined,
+    anthropicBase: string | undefined,
+    ollamaBase: string,
+  ) {
     return {
-      current: {
-        provider: cfg.aiProvider ?? "openai",
-        model: cfg.aiModel ?? "gpt-5.4-mini",
-      },
+      current: { provider: cfg.aiProvider ?? "openai", model: cfg.aiModel ?? "" },
       providers: {
         openai: {
-          models: knownModels("openai"),
-          baseUrl: process.env.OPENAI_BASE_URL ?? cfg.providerBaseUrls?.openai,
+          models: openai.models,
+          disabled: openai.disabled,
+          baseUrl: openaiBase,
           apiKeyPreview: maskApiKey(process.env.OPENAI_API_KEY),
-          apiKeyHint:
-            "Set OPENAI_API_KEY before starting dev server (e.g. export OPENAI_API_KEY=...).",
+          apiKeyHint: "Set OPENAI_API_KEY before starting dev server (e.g. export OPENAI_API_KEY=...).",
         },
         anthropic: {
-          models: knownModels("anthropic"),
-          baseUrl:
-            process.env.ANTHROPIC_BASE_URL ?? cfg.providerBaseUrls?.anthropic,
+          models: anthropic.models,
+          disabled: anthropic.disabled,
+          baseUrl: anthropicBase,
           apiKeyPreview: maskApiKey(process.env.ANTHROPIC_API_KEY),
-          apiKeyHint:
-            "Set ANTHROPIC_API_KEY before starting dev server (e.g. export ANTHROPIC_API_KEY=...).",
+          apiKeyHint: "Set ANTHROPIC_API_KEY before starting dev server (e.g. export ANTHROPIC_API_KEY=...).",
         },
         ollama: {
-          models: ollamaModels.length ? ollamaModels : knownModels("ollama"),
+          models: ollamaModels.length ? ollamaModels : ollamaFallbackModels(),
+          disabled: false,
           baseUrl: ollamaBase,
           apiKeyPreview: null,
           apiKeyHint: "No API key required by default for local Ollama.",
         },
         none: {
           models: [],
+          disabled: false,
           baseUrl: null,
           apiKeyPreview: null,
-          apiKeyHint:
-            "Disables model calls and uses deterministic fallback generation.",
+          apiKeyHint: "Disables model calls and uses deterministic fallback generation.",
         },
       },
     };
+  }
+
+  app.get("/-/api/providers", async () => {
+    const cfg = await storage.readConfig();
+    const openaiBase = process.env.OPENAI_BASE_URL ?? cfg.providerBaseUrls?.openai;
+    const anthropicBase = process.env.ANTHROPIC_BASE_URL ?? cfg.providerBaseUrls?.anthropic;
+    const ollamaBase =
+      process.env.OLLAMA_BASE_URL ?? cfg.providerBaseUrls?.ollama ?? "http://127.0.0.1:11434";
+
+    const [openai, anthropic] = await Promise.all([
+      providerCache.openai ?? listOpenAiModels(openaiBase, process.env.OPENAI_API_KEY).then((r) => { providerCache.openai = r; return r; }),
+      providerCache.anthropic ?? listAnthropicModels(anthropicBase, process.env.ANTHROPIC_API_KEY).then((r) => { providerCache.anthropic = r; return r; }),
+    ]);
+
+    if (!providerCache.ollama || providerCache.ollama.base !== ollamaBase) {
+      const models = await listOllamaModels(ollamaBase);
+      providerCache.ollama = { models, base: ollamaBase };
+    }
+
+    return buildProvidersResponse(cfg, openai, anthropic, providerCache.ollama.models, openaiBase, anthropicBase, ollamaBase);
+  });
+
+  app.post("/-/api/providers/ollama/refresh", async () => {
+    const cfg = await storage.readConfig();
+    const ollamaBase =
+      process.env.OLLAMA_BASE_URL ?? cfg.providerBaseUrls?.ollama ?? "http://127.0.0.1:11434";
+    const models = await listOllamaModels(ollamaBase);
+    providerCache.ollama = { models, base: ollamaBase };
+    return { models: models.length ? models : ollamaFallbackModels() };
   });
 
   app.post("/-/api/openapi", async (req, reply) => {
@@ -579,23 +512,6 @@ export async function createApp(options: CreateAppOptions) {
         displayLabel?: string;
       }>;
 
-      const pickPriorityKey = (
-        obj: Record<string, unknown>,
-      ): string | undefined => {
-        const keys = Object.keys(obj);
-        if (keys.length === 0) return undefined;
-        const lower = keys.map((k) => k.toLowerCase());
-        const exactId = keys.find((k) => k.toLowerCase() === "id");
-        if (exactId) return exactId;
-        const starId = keys.find((k) => k.toLowerCase().endsWith("id"));
-        if (starId) return starId;
-        const name = keys.find((k) => k.toLowerCase() === "name");
-        if (name) return name;
-        const type = keys.find((k) => k.toLowerCase() === "type");
-        if (type) return type;
-        return keys[0];
-      };
-
       for (const file of files) {
         const mock = await storage.readMock(file);
         const id =
@@ -723,29 +639,17 @@ export async function createApp(options: CreateAppOptions) {
         .code(400)
         .send({ error: "method, path, id, mock are required" });
 
-    const savedPath = await storage.saveVariant(method, apiPath, id, {
-      ...mock,
-      meta: {
-        ...mock.meta,
-        source: "manual",
-        createdAt: new Date().toISOString(),
-      },
-    });
+    const updatedMeta = { ...mock.meta, source: "manual" as const, createdAt: new Date().toISOString() };
+    const savedPath = await storage.saveVariant(method, apiPath, id, { ...mock, meta: updatedMeta });
 
-    const index = await storage.readIndex();
+    const [index, existingDefault] = await Promise.all([
+      storage.readIndex(),
+      storage.readMock(storage.defaultPath(method, apiPath)),
+    ]);
     await storage.writeIndex(upsertIndex(index, method, apiPath, savedPath));
 
-    const defaultPath = storage.defaultPath(method, apiPath);
-    const existingDefault = await storage.readMock(defaultPath);
     if (!existingDefault) {
-      await storage.saveDefault(method, apiPath, {
-        ...mock,
-        meta: {
-          ...mock.meta,
-          source: "manual",
-          createdAt: new Date().toISOString(),
-        },
-      });
+      await storage.saveDefault(method, apiPath, { ...mock, meta: updatedMeta });
     }
 
     emitLiveEvent("variants-updated", {
@@ -835,7 +739,7 @@ export async function createApp(options: CreateAppOptions) {
       reply.raw.write(`data: ${JSON.stringify(data)}\n\n`);
     };
 
-    sseClients.add({ id, send });
+    sseClients.set(id, send);
     send("ready", { ok: true });
 
     const keepAlive = setInterval(() => {
@@ -844,12 +748,7 @@ export async function createApp(options: CreateAppOptions) {
 
     reply.raw.on("close", () => {
       clearInterval(keepAlive);
-      for (const c of sseClients) {
-        if (c.id === id) {
-          sseClients.delete(c);
-          break;
-        }
-      }
+      sseClients.delete(id);
     });
 
     return reply;
@@ -917,16 +816,14 @@ export async function createApp(options: CreateAppOptions) {
       const body = req.body;
 
       const variantName = buildVariantName(query, body ?? {});
-      const exact = await storage.readMock(
-        storage.mockPath(method, fullPath, variantName),
-      );
-      const variantFiles = await storage.listVariants(method, fullPath);
+      const [exact, variantFiles, defaultMock] = await Promise.all([
+        storage.readMock(storage.mockPath(method, fullPath, variantName)),
+        storage.listVariants(method, fullPath),
+        storage.readMock(storage.defaultPath(method, fullPath)),
+      ]);
       const variants = (
         await Promise.all(variantFiles.map((f) => storage.readMock(f)))
       ).filter(Boolean) as StoredMock[];
-      const defaultMock = await storage.readMock(
-        storage.defaultPath(method, fullPath),
-      );
 
       const match = matchMock({
         exact,
@@ -976,7 +873,7 @@ export async function createApp(options: CreateAppOptions) {
       const context = await readFile(
         path.join(storage.metaDir(), "context.md"),
         "utf8",
-      );
+      ).catch(() => "");
       const similarExamples = await collectSimilarExamples({
         storage,
         method,
@@ -1021,9 +918,9 @@ export async function createApp(options: CreateAppOptions) {
         ? buildPrompt(aiInput, config, new Date())
         : undefined;
 
-      const generated = await generateMockResponse(aiInput, config);
+      const result = await generateMockResponse(aiInput, config);
 
-      if (!generated) {
+      if (!result.ok) {
         await storage.appendMiss({
           at: new Date().toISOString(),
           method,
@@ -1041,9 +938,12 @@ export async function createApp(options: CreateAppOptions) {
           match: "none",
           status: 404,
           prompt: promptForLogs,
+          aiError: result.reason,
         });
         return reply.code(404).send({ error: "No mock found" });
       }
+
+      const generated = result.mock;
 
       await storage.appendMiss({
         at: new Date().toISOString(),
@@ -1055,13 +955,8 @@ export async function createApp(options: CreateAppOptions) {
       });
       emitLiveEvent("miss", { method, path: fullPath, resolvedBy: "ai" });
 
-      const openapiFileJson = path.join(storage.metaDir(), "openapi.json");
-      const openapiFileYaml = path.join(storage.metaDir(), "openapi.yaml");
-      const openapi =
-        (await loadOpenApiFile(openapiFileJson)) ??
-        (await loadOpenApiFile(openapiFileYaml));
       const validation = validateResponseWithOpenApi({
-        doc: openapi,
+        doc: openapiDoc,
         method,
         path: fullPath,
         status: generated.response.status,

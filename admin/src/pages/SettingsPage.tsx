@@ -1,3 +1,4 @@
+import { RefreshCw } from "lucide-react";
 import { Card } from "../components/Card";
 import type { ProviderInfo } from "../types";
 
@@ -19,6 +20,7 @@ export function SettingsPage(props: {
   ollamaBaseUrl: string;
   setOllamaBaseUrl: (v: string) => void;
   loadProviders: () => void;
+  refreshOllamaModels: () => void;
   showPromptHints: boolean;
   setShowPromptHints: (v: boolean) => void;
   promptTemplate: string;
@@ -41,18 +43,25 @@ export function SettingsPage(props: {
           <div>
             <p className="mb-1 text-xs text-zinc-400">AI Provider</p>
             <select value={props.providerName} onChange={(e) => props.setProviderName(e.target.value)} className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs">
-              {Object.keys(props.providerInfo.providers ?? { openai: {}, anthropic: {}, ollama: {}, none: {} }).map((p) => (
-                <option key={p} value={p}>{p}</option>
+              {Object.entries(props.providerInfo.providers ?? { openai: {}, anthropic: {}, ollama: {}, none: {} }).map(([p, info]) => (
+                <option key={p} value={p} disabled={info.disabled}>{p}</option>
               ))}
             </select>
           </div>
           <div>
             <p className="mb-1 text-xs text-zinc-400">Model</p>
-            <select value={props.providerModel} onChange={(e) => props.setProviderModel(e.target.value)} className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs">
-              {(props.providerInfo.providers?.[props.providerName]?.models ?? []).map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
+            <div className="flex gap-1">
+              <select value={props.providerModel} onChange={(e) => props.setProviderModel(e.target.value)} className="flex-1 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs">
+                {(props.providerInfo.providers?.[props.providerName]?.models ?? []).map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+              {props.providerName === "ollama" && (
+                <button onClick={props.refreshOllamaModels} disabled={props.busy} title="Refresh Ollama models" className="rounded-xl border border-zinc-700 px-2 hover:bg-zinc-800 disabled:opacity-50">
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

@@ -4,6 +4,44 @@ import { openai, createOpenAI } from "@ai-sdk/openai";
 import { anthropic, createAnthropic } from "@ai-sdk/anthropic";
 import { createOllama } from "ai-sdk-ollama";
 import type { AppConfig, StoredMock } from "./types.js";
+import {
+  listOpenAiModels,
+  listAnthropicModels,
+  listOllamaModels,
+  ollamaFallbackModels,
+} from "./providers.js";
+
+async function resolveModelId(
+  provider: string,
+  config: AppConfig,
+): Promise<string | null> {
+  const explicit = process.env.MOCK_AI_MODEL ?? config.aiModel;
+  if (explicit) return explicit;
+
+  if (provider === "openai") {
+    const { models } = await listOpenAiModels(
+      process.env.OPENAI_BASE_URL ?? config.providerBaseUrls?.openai,
+      process.env.OPENAI_API_KEY,
+    );
+    return models[0] ?? null;
+  }
+  if (provider === "anthropic") {
+    const { models } = await listAnthropicModels(
+      process.env.ANTHROPIC_BASE_URL ?? config.providerBaseUrls?.anthropic,
+      process.env.ANTHROPIC_API_KEY,
+    );
+    return models[0] ?? null;
+  }
+  if (provider === "ollama") {
+    const base =
+      process.env.OLLAMA_BASE_URL ??
+      config.providerBaseUrls?.ollama ??
+      "http://127.0.0.1:11434";
+    const models = await listOllamaModels(base);
+    return models[0] ?? ollamaFallbackModels()[0] ?? null;
+  }
+  return null;
+}
 import { shortHash } from "./utils.js";
 
 export interface AiGenerateInput {
@@ -231,16 +269,19 @@ function selectModel(provider: string, model: string, config: AppConfig) {
   return openai(model);
 }
 
+export type GenerateSuccess = { ok: true; mock: StoredMock };
+export type GenerateFailure = { ok: false; reason: string };
+
 export async function generateMockResponse(
   input: AiGenerateInput,
   config: AppConfig,
-): Promise<StoredMock | null> {
+): Promise<GenerateSuccess | GenerateFailure> {
   const provider =
     process.env.MOCK_AI_PROVIDER ?? config.aiProvider ?? "openai";
   const now = new Date();
   const prompt = buildPrompt(input, config, now);
 
-  if (provider === "none") return null;
+  if (provider === "none") return { ok: false, reason: "provider-none" };
 
   const providerKeyMissing =
     (provider === "openai" && !process.env.OPENAI_API_KEY) ||
@@ -255,7 +296,7 @@ export async function generateMockResponse(
       method: input.method,
       path: input.path,
     });
-    return null;
+    return { ok: false, reason: "missing-provider-key" };
   }
 
   if (!["openai", "anthropic", "ollama"].includes(provider)) {
@@ -267,21 +308,16 @@ export async function generateMockResponse(
       method: input.method,
       path: input.path,
     });
-    return null;
+    return { ok: false, reason: "unsupported-provider" };
+  }
+
+  const modelId = await resolveModelId(provider, config);
+  if (!modelId) {
+    return { ok: false, reason: "no-model-available" };
   }
 
   try {
-    const model = selectModel(
-      provider,
-      process.env.MOCK_AI_MODEL ??
-        config.aiModel ??
-        (provider === "anthropic"
-          ? "claude-3-5-sonnet-latest"
-          : provider === "ollama"
-            ? "llama3.1:8b"
-            : "gpt-5.4-mini"),
-      config,
-    );
+    const model = selectModel(provider, modelId, config);
 
     const result = await generateText({
       model,
@@ -298,14 +334,7 @@ export async function generateMockResponse(
         ts: new Date().toISOString(),
         kind: "mock-bff-ai-result",
         provider,
-        model:
-          process.env.MOCK_AI_MODEL ??
-          config.aiModel ??
-          (provider === "anthropic"
-            ? "claude-3-5-sonnet-latest"
-            : provider === "ollama"
-              ? "llama3.1:8b"
-              : "gpt-5.4-mini"),
+        model: modelId,
         method: input.method,
         path: input.path,
         finishReason: result.finishReason,
@@ -322,39 +351,43 @@ export async function generateMockResponse(
       })
       .parse(parsedRaw);
 
-    const body = parsed.body;
-    const status = parsed.status;
-    const headers = {
-      "content-type": parsed.contentType || "application/json",
-      "x-mock-source": "ai",
-    };
-
     return {
-      requestSignature: {
-        method: input.method,
-        path: input.path,
-        queryHash: shortHash(JSON.stringify(input.query)),
-        bodyHash: shortHash(JSON.stringify(input.body ?? {})),
-      },
-      requestSnapshot: { query: input.query, body: input.body },
-      response: { status, headers, body },
-      meta: {
-        source: "ai",
-        createdAt: new Date().toISOString(),
-        seed: config.aiSeed,
-        notes: `vercel-ai-sdk:${provider}`,
-        ...(config.aiStorePrompt ? { prompt } : {}),
+      ok: true,
+      mock: {
+        requestSignature: {
+          method: input.method,
+          path: input.path,
+          queryHash: shortHash(JSON.stringify(input.query)),
+          bodyHash: shortHash(JSON.stringify(input.body ?? {})),
+        },
+        requestSnapshot: { query: input.query, body: input.body },
+        response: {
+          status: parsed.status,
+          headers: {
+            "content-type": parsed.contentType || "application/json",
+            "x-mock-source": "ai",
+          },
+          body: parsed.body,
+        },
+        meta: {
+          source: "ai",
+          createdAt: new Date().toISOString(),
+          seed: config.aiSeed,
+          notes: `vercel-ai-sdk:${provider}`,
+          ...(config.aiStorePrompt ? { prompt } : {}),
+        },
       },
     };
   } catch (error) {
+    const err = error as Error | undefined;
     logAiError({
       reason: "generateText-failed",
       provider,
-      model: process.env.MOCK_AI_MODEL ?? config.aiModel,
+      model: modelId,
       method: input.method,
       path: input.path,
       error,
     });
-    return null;
+    return { ok: false, reason: err?.message ?? "generateText-failed" };
   }
 }

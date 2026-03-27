@@ -143,6 +143,7 @@ export function App() {
     clearLogs,
     clearMisses,
     loadProviders,
+    refreshOllamaModels,
     uploadFile,
     deleteOpenApiDoc: deleteOpenApiDocRaw,
     setAiStorePrompt,
@@ -784,6 +785,7 @@ export function App() {
                 ollamaBaseUrl={ollamaBaseUrl}
                 setOllamaBaseUrl={setOllamaBaseUrl}
                 loadProviders={loadProviders}
+                refreshOllamaModels={refreshOllamaModels}
                 showPromptHints={showPromptHints}
                 setShowPromptHints={setShowPromptHints}
                 promptTemplate={promptTemplate}

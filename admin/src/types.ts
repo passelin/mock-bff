@@ -28,6 +28,7 @@ export type ProviderInfo = {
     string,
     {
       models?: string[];
+      disabled?: boolean;
       baseUrl?: string | null;
       apiKeyPreview?: string | null;
       apiKeyHint?: string;

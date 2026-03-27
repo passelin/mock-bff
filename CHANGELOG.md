@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.6] - 2026-03-26
+
+### Fixed
+- Regenerated `package-lock.json` with `--legacy-peer-deps` to match CI install strategy and fix `npm ci` failure in publish workflow
+
 ## [0.4.5] - 2026-03-26
 
 ### Fixed

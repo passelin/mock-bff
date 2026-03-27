@@ -15,7 +15,9 @@ export async function listOpenAiModels(
   apiKey: string | undefined,
 ): Promise<{ models: string[]; disabled: boolean }> {
   if (!apiKey) return { models: [], disabled: true };
-  const base = (baseUrl ?? "https://api.openai.com").replace(/\/+$/, "");
+  const base = (baseUrl ?? "https://api.openai.com")
+    .replace(/\/+$/, "")
+    .replace(/\/v1$/, "");
   try {
     const res = await fetch(`${base}/v1/models`, {
       headers: { Authorization: `Bearer ${apiKey}` },
@@ -40,7 +42,9 @@ export async function listAnthropicModels(
   apiKey: string | undefined,
 ): Promise<{ models: string[]; disabled: boolean }> {
   if (!apiKey) return { models: [], disabled: true };
-  const base = (baseUrl ?? "https://api.anthropic.com").replace(/\/+$/, "");
+  const base = (baseUrl ?? "https://api.anthropic.com")
+    .replace(/\/+$/, "")
+    .replace(/\/v1$/, "");
   try {
     const res = await fetch(`${base}/v1/models`, {
       headers: {

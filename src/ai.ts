@@ -251,9 +251,12 @@ function selectModel(provider: string, model: string, config: AppConfig) {
   }
 
   if (provider === "anthropic") {
-    const baseURL =
+    const rawBase =
       process.env.ANTHROPIC_BASE_URL ?? config.providerBaseUrls?.anthropic;
-    if (baseURL) return createAnthropic({ baseURL })(model);
+    if (rawBase) {
+      const normalized = rawBase.replace(/\/+$/, "").replace(/\/v1$/, "");
+      return createAnthropic({ baseURL: `${normalized}/v1` })(model);
+    }
     return anthropic(model);
   }
 

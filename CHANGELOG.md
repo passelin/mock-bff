@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.4] - 2026-03-26
+
+### Changed
+- Settings UI: AI Provider and Model selects each on their own full-width row
+- Settings UI: improved select appearance with custom aligned caret icon
+
 ## [0.4.3] - 2026-03-26
 
 ### Fixed

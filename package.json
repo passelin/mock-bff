@@ -1,6 +1,6 @@
 {
   "name": "@passelin/mock-bff",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Mock BFF server for UI modernization using HAR/OpenAPI + AI fallback",
   "type": "module",
   "bin": {

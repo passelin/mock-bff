@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.5] - 2026-03-26
+
+### Fixed
+- Regenerated `package-lock.json` to fix `npm ci` failure in publish workflow
+
 ## [0.4.4] - 2026-03-26
 
 ### Changed

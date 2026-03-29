@@ -26,65 +26,7 @@ import { useAdminData } from "./hooks/useAdminData";
 import type { VariantMeta } from "./types";
 import bffCandyHeartLogo from "./assets/bff_candy_heart.svg";
 
-const DEFAULT_PROMPT_TEMPLATE = `You are an HTTP server for a Single Page Application.
-Read the incoming HTTP request and return the most realistic successful HTTP response for a production-style REST API.
-
-Output requirements:
-1. Return exactly one JSON object with these top-level keys:
- - \`status\`: number
- - \`contentType\`: string (mime-type)
- - \`body\`: JSON value or string (depending on content type)
-2. Do not include prose, commentary, explanations, or markdown.
-3. The response must always be a successful HTTP response (2xx only).
-
-Content negotiation:
-1. Inspect the \`Accept\` header to determine the response format.
-
-2. Default behavior (critical):
- - If the \`Accept\` header resembles a typical browser request (e.g. includes multiple types like \`text/html\`, \`application/xhtml+xml\`, \`application/xml\`, \`image/*\`, \`*/*\`), treat it as NO explicit preference.
- - In these cases, ALWAYS return \`application/json\`.
- - If \`*/*\` is present, treat it as no preference and return JSON.
-
-3. Explicit format selection:
- - Only return a non-JSON format (e.g. \`text/html\`) if:
- - The \`Accept\` header specifies a single clear mime type, OR
- - One mime type has a strictly higher q-value than all others and is not a wildcard.
-
-4. Ambiguous or browser-style headers:
- - If multiple types are listed without a clear single winner (even if ordered), IGNORE ordering and return JSON.
-
-5. If the requested type is unsupported or unclear, default to \`application/json\`.
-
-6. For non-JSON responses (only when explicitly required), return a realistic representation (e.g. full HTML document as a string).
-
-7. Always set the \`Content-Type\` header accordingly.
-
-Response behavior:
-1. Follow standard REST conventions:
- - \`POST\` creates a resource and returns the created entity.
- - \`GET /collection\` returns an array.
- - \`GET /collection/:id\` returns a single entity.
- - \`PATCH\` partially updates fields and returns the updated entity.
- - \`PUT\` replaces the entity and returns the replaced entity.
- - \`DELETE\` returns \`204\` with \`body: null\` or a confirmation object.
-2. Support nested resources such as \`/users/:id/comments/:commentId\`.
-3. IDs must be unique and realistic.
-4. Timestamps must be realistic ISO-8601 strings.
-5. Prefer realistic defaults when information is missing.
-
-Conflict resolution:
-1. Always return a successful response (2xx). Never return 4xx or 5xx.
-2. If format expectations conflict, prioritize explicit \`Accept\` rules, otherwise default to JSON.
-
-Data modeling rules:
-1. Use the provided schema and endpoint hints whenever relevant.
-2. Preserve field names and types exactly as defined.
-3. Populate optional fields only when realistic.
-4. Keep generated values internally consistent.
-5. IDs should be unique numbers (random).
-6. Output VALID JSON ONLY. Do not add ellipsis or other non valid output.
-
-ADDITIONAL CONTEXT:
+const DEFAULT_PROMPT_TEMPLATE = `ADDITIONAL CONTEXT:
 {{context}}
 
 SIMILAR EXAMPLES:
@@ -116,6 +58,10 @@ export function App() {
     setProviderName,
     providerModel,
     setProviderModel,
+    aiSeed,
+    setAiSeed,
+    aiTemperature,
+    setAiTemperature,
     openaiBaseUrl,
     setOpenaiBaseUrl,
     anthropicBaseUrl,
@@ -161,6 +107,7 @@ export function App() {
   const [selectedMethod, setSelectedMethod] = useState("");
   const [selectedPath, setSelectedPath] = useState("");
   const [variantList, setVariantList] = useState<VariantMeta[]>([]);
+  const [forcedVariantId, setForcedVariantId] = useState<string | undefined>(undefined);
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const [variantEditor, setVariantEditor] = useState("");
   const [createMethod, setCreateMethod] = useState("GET");
@@ -372,6 +319,11 @@ export function App() {
     }
   }
 
+  function mockToEditorJson(mock: Record<string, unknown>): string {
+    const { requestSignature: _sig, meta: _meta, ...editable } = mock;
+    return JSON.stringify(editable, null, 2);
+  }
+
   async function loadVariants(method: string, path: string) {
     setSelectedMethod(method);
     setSelectedPath(path);
@@ -382,6 +334,7 @@ export function App() {
     ).json();
     const variants = data.variants ?? [];
     setVariantList(variants);
+    setForcedVariantId(data.forcedVariant ?? undefined);
 
     if (variants.length === 1) {
       const onlyId = variants[0].id;
@@ -391,7 +344,7 @@ export function App() {
           `/-/api/variant?method=${encodeURIComponent(method)}&path=${encodeURIComponent(path)}&id=${encodeURIComponent(onlyId)}`,
         )
       ).json();
-      setVariantEditor(JSON.stringify(one.mock, null, 2));
+      setVariantEditor(mockToEditorJson(one.mock));
     } else {
       setSelectedVariantId("");
       setVariantEditor("");
@@ -405,7 +358,7 @@ export function App() {
         `/-/api/variant?method=${encodeURIComponent(selectedMethod)}&path=${encodeURIComponent(selectedPath)}&id=${encodeURIComponent(id)}`,
       )
     ).json();
-    setVariantEditor(JSON.stringify(data.mock, null, 2));
+    setVariantEditor(mockToEditorJson(data.mock));
   }
 
   async function deleteVariant(id: string) {
@@ -448,7 +401,7 @@ export function App() {
     setBusy(true);
     try {
       const mock = JSON.parse(variantEditor);
-      await fetch("/-/api/variant", {
+      const res = await fetch("/-/api/variant", {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -458,11 +411,34 @@ export function App() {
           mock,
         }),
       });
+      const data = await res.json().catch(() => ({}));
+      const savedId = data.id ?? selectedVariantId;
       await loadVariants(selectedMethod, selectedPath);
+      setSelectedVariantId(savedId);
       await loadEndpoints();
       showToast("Variant saved");
     } catch {
       showToast("Variant save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function forceVariant(id: string | null) {
+    if (!selectedMethod || !selectedPath) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/-/api/variant/force", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ method: selectedMethod, path: selectedPath, id }),
+      });
+      if (!res.ok) throw new Error("force failed");
+      setForcedVariantId(id ?? undefined);
+      await loadEndpoints();
+      showToast(id ? `Variant "${id}" is now forced` : "Force cleared");
+    } catch {
+      showToast("Failed to set forced variant");
     } finally {
       setBusy(false);
     }
@@ -599,12 +575,12 @@ export function App() {
               label="Variants"
               icon={<RouteIcon className="h-4 w-4" />}
             />
-            <Tab to="/logs" label="Logs" icon={<Logs className="h-4 w-4" />} />
             <Tab
               to="/openapi"
               label="OpenAPI"
               icon={<FileJson className="h-4 w-4" />}
             />
+            <Tab to="/logs" label="Logs" icon={<Logs className="h-4 w-4" />} />
             <Tab
               to="/settings"
               label="Settings"
@@ -644,15 +620,15 @@ export function App() {
                 onClick={() => setMobileMenuOpen(false)}
               />
               <Tab
-                to="/logs"
-                label="Logs"
-                icon={<Logs className="h-4 w-4" />}
-                onClick={() => setMobileMenuOpen(false)}
-              />
-              <Tab
                 to="/openapi"
                 label="OpenAPI"
                 icon={<FileJson className="h-4 w-4" />}
+                onClick={() => setMobileMenuOpen(false)}
+              />
+              <Tab
+                to="/logs"
+                label="Logs"
+                icon={<Logs className="h-4 w-4" />}
                 onClick={() => setMobileMenuOpen(false)}
               />
               <Tab
@@ -698,6 +674,7 @@ export function App() {
                 clearEndpoint={clearEndpoint}
                 clearSelectedEndpoints={clearSelectedEndpoints}
                 busy={busy}
+                requests={requests}
               />
             }
           />
@@ -726,6 +703,8 @@ export function App() {
                 clearSelectedEndpoints={clearSelectedEndpoints}
                 clearEndpoint={clearEndpoint}
                 variantList={variantList}
+                forcedVariantId={forcedVariantId}
+                forceVariant={forceVariant}
                 selectedVariantId={selectedVariantId}
                 selectVariant={selectVariant}
                 deleteVariant={deleteVariant}
@@ -778,6 +757,10 @@ export function App() {
                 setProviderName={setProviderName}
                 providerModel={providerModel}
                 setProviderModel={setProviderModel}
+                aiSeed={aiSeed}
+                setAiSeed={setAiSeed}
+                aiTemperature={aiTemperature}
+                setAiTemperature={setAiTemperature}
                 openaiBaseUrl={openaiBaseUrl}
                 setOpenaiBaseUrl={setOpenaiBaseUrl}
                 anthropicBaseUrl={anthropicBaseUrl}

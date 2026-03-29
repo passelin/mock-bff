@@ -80,7 +80,7 @@ function parseJsonValue(text: string): unknown {
   }
 }
 
-const DEFAULT_PROMPT_TEMPLATE = `You are an HTTP server for a Single Page Application.
+export const SYSTEM_PROMPT = `You are an HTTP server for a Single Page Application.
 Read the incoming HTTP request and return the most realistic successful HTTP response for a production-style REST API.
 
 Output requirements:
@@ -141,18 +141,16 @@ Data modeling rules:
 3. Populate optional fields only when realistic.
 4. Keep generated values internally consistent.
 5. IDs should be unique numbers (random).
-6. Output VALID JSON ONLY. Do not add ellipsis or other non valid output.
+6. Output VALID JSON ONLY. Do not add ellipsis or other non valid output.`;
 
-ADDITIONAL CONTEXT:
-
+const DEFAULT_PROMPT_TEMPLATE = `ADDITIONAL CONTEXT:
 {{context}}
 
 SIMILAR EXAMPLES:
 {{similar_examples_json}}
 
 THE REQUEST:
-
-Timestamp: {{datetime_iso}} 
+Timestamp: {{datetime_iso}}
 Method: {{method}}
 Path: {{path}}
 Query params: {{query_json}}
@@ -324,7 +322,9 @@ export async function generateMockResponse(
 
     const result = await generateText({
       model,
+      system: SYSTEM_PROMPT,
       prompt,
+      ...(config.aiTemperature !== undefined ? { temperature: config.aiTemperature } : {}),
       providerOptions:
         config.aiSeed !== undefined
           ? { openai: { seed: config.aiSeed } }

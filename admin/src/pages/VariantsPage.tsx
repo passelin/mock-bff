@@ -1,4 +1,4 @@
-import { Plus, Trash2 } from "lucide-react";
+import { Pin, PinOff, Plus, Trash2 } from "lucide-react";
 import { Card } from "../components/Card";
 import type { Endpoint, VariantMeta } from "../types";
 
@@ -24,6 +24,8 @@ export function VariantsPage(props: {
   clearEndpoint: (method: string, path: string) => void;
 
   variantList: VariantMeta[];
+  forcedVariantId: string | undefined;
+  forceVariant: (id: string | null) => void;
   selectedVariantId: string;
   selectVariant: (id: string) => void;
   deleteVariant: (id: string) => void;
@@ -147,43 +149,66 @@ export function VariantsPage(props: {
             }
           >
             <div className="space-y-2 max-h-80 overflow-auto">
-              {props.variantList.map((v) => (
-                <div
-                  key={v.id}
-                  className={`w-full rounded-lg border px-3 py-2 transition ${props.selectedVariantId === v.id ? "border-brand-500 bg-brand-500/10" : "border-zinc-700 hover:bg-zinc-800"}`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <button
-                      onClick={() => props.selectVariant(v.id)}
-                      className="flex-1 text-left"
-                    >
-                      <div
-                        className="font-mono text-xs"
-                        style={{
-                          display: "-webkit-box",
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: "vertical",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                        title={v.displayLabel || v.id}
+              {props.variantList.map((v) => {
+                const isForced = props.forcedVariantId === v.id;
+                return (
+                  <div
+                    key={v.id}
+                    className={`w-full rounded-lg border px-3 py-2 transition ${props.selectedVariantId === v.id ? "border-brand-500 bg-brand-500/10" : isForced ? "border-amber-500 bg-amber-500/10" : "border-zinc-700 hover:bg-zinc-800"}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <button
+                        onClick={() => props.selectVariant(v.id)}
+                        className="flex-1 text-left"
                       >
-                        {v.displayLabel || v.id}
+                        <div
+                          className="font-mono text-xs"
+                          style={{
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                          title={v.displayLabel || v.id}
+                        >
+                          {v.displayLabel || v.id}
+                        </div>
+                        <div className="text-xs text-zinc-400 mt-1 flex items-center gap-1">
+                          {v.source} · status {v.status}
+                          {isForced && (
+                            <span className="ml-1 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+                              forced
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                      <div className="flex shrink-0 items-center gap-1 self-center">
+                        <button
+                          onClick={() =>
+                            props.forceVariant(isForced ? null : v.id)
+                          }
+                          title={isForced ? "Clear forced variant" : "Force this variant"}
+                          className={`rounded p-1.5 ${isForced ? "text-amber-400 hover:bg-amber-900/30" : "text-zinc-500 hover:bg-zinc-700 hover:text-amber-400"}`}
+                        >
+                          {isForced ? (
+                            <PinOff className="h-4 w-4" />
+                          ) : (
+                            <Pin className="h-4 w-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => props.deleteVariant(v.id)}
+                          disabled={props.variantList.length <= 1}
+                          className="rounded p-1.5 text-rose-300 hover:bg-rose-900/30 disabled:opacity-40"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
-                      <div className="text-xs text-zinc-400 mt-1">
-                        {v.source} · status {v.status}
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => props.deleteVariant(v.id)}
-                      disabled={props.variantList.length <= 1}
-                      className="self-center rounded p-1.5 text-rose-300 hover:bg-rose-900/30 shrink-0 disabled:opacity-40"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             {props.selectedMethod &&
             props.selectedPath &&

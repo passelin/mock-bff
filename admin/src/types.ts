@@ -3,6 +3,7 @@ export type Endpoint = {
   path: string;
   variants: number;
   hasDefault: boolean;
+  forcedVariant?: string;
 };
 
 export type VariantMeta = {

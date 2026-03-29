@@ -12,6 +12,8 @@ export function useAdminData(defaultPromptTemplate: string) {
   const [providerInfo, setProviderInfo] = useState<ProviderInfo>({});
   const [providerName, setProviderName] = useState("openai");
   const [providerModel, setProviderModel] = useState("gpt-5.4-mini");
+  const [aiSeed, setAiSeed] = useState("");
+  const [aiTemperature, setAiTemperature] = useState("");
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState(
     "https://api.openai.com/v1",
   );
@@ -62,6 +64,8 @@ export function useAdminData(defaultPromptTemplate: string) {
     );
     setProviderName(cfg.aiProvider ?? "openai");
     setProviderModel(cfg.aiModel ?? "gpt-5.4-mini");
+    setAiSeed(cfg.aiSeed !== undefined && cfg.aiSeed !== null ? String(cfg.aiSeed) : "");
+    setAiTemperature(cfg.aiTemperature !== undefined && cfg.aiTemperature !== null ? String(cfg.aiTemperature) : "");
     setOpenaiBaseUrl(
       cfg.providerBaseUrls?.openai ?? "https://api.openai.com/v1",
     );
@@ -207,6 +211,18 @@ export function useAdminData(defaultPromptTemplate: string) {
       parsed.aiPromptTemplate = promptTemplate;
       parsed.aiProvider = providerName;
       parsed.aiModel = providerModel;
+      const seedNum = aiSeed.trim() !== "" ? parseInt(aiSeed, 10) : undefined;
+      if (seedNum !== undefined && !isNaN(seedNum)) {
+        parsed.aiSeed = seedNum;
+      } else {
+        delete parsed.aiSeed;
+      }
+      const tempNum = aiTemperature.trim() !== "" ? parseFloat(aiTemperature) : undefined;
+      if (tempNum !== undefined && !isNaN(tempNum)) {
+        parsed.aiTemperature = tempNum;
+      } else {
+        delete parsed.aiTemperature;
+      }
       parsed.providerBaseUrls = {
         ...(parsed.providerBaseUrls ?? {}),
         openai: openaiBaseUrl,
@@ -258,6 +274,10 @@ export function useAdminData(defaultPromptTemplate: string) {
     setProviderName,
     providerModel,
     setProviderModel,
+    aiSeed,
+    setAiSeed,
+    aiTemperature,
+    setAiTemperature,
     openaiBaseUrl,
     setOpenaiBaseUrl,
     anthropicBaseUrl,

@@ -458,6 +458,7 @@ export async function createApp(options: CreateAppOptions) {
       path: e.path,
       variants: e.variants.length,
       hasDefault: Boolean(e.defaultVariant),
+      forcedVariant: e.forcedVariant,
     }));
   });
 
@@ -565,7 +566,9 @@ export async function createApp(options: CreateAppOptions) {
         });
       }
 
-      return { method, path: apiPath, variants: items };
+      const idx = await storage.readIndex();
+      const entry = idx.find((e) => e.method === method && e.path === apiPath);
+      return { method, path: apiPath, variants: items, forcedVariant: entry?.forcedVariant };
     },
   );
 
@@ -639,31 +642,87 @@ export async function createApp(options: CreateAppOptions) {
         .code(400)
         .send({ error: "method, path, id, mock are required" });
 
-    const updatedMeta = { ...mock.meta, source: "manual" as const, createdAt: new Date().toISOString() };
-    const savedPath = await storage.saveVariant(method, apiPath, id, { ...mock, meta: updatedMeta });
+    const existing = await storage.readMock(storage.mockPath(method, apiPath, id));
+    const preservedMeta = existing?.meta ?? mock.meta;
+
+    const snap = mock.requestSnapshot ?? existing?.requestSnapshot;
+    const newId = snap !== undefined ? buildVariantName(snap.query, snap.body ?? {}) : id;
+
+    const rebuiltSignature = {
+      method,
+      path: apiPath,
+      queryHash: newId.match(/^q_(.+?)__b_/)?.[1] ?? "manual",
+      bodyHash: newId.match(/__b_(.+)$/)?.[1] ?? "manual",
+    };
+
+    const savedMock = { ...mock, requestSignature: rebuiltSignature, requestSnapshot: snap, meta: preservedMeta };
+    const savedPath = await storage.saveVariant(method, apiPath, newId, savedMock);
+
+    if (newId !== id) {
+      await storage.clearVariant(method, apiPath, id);
+    }
 
     const [index, existingDefault] = await Promise.all([
       storage.readIndex(),
       storage.readMock(storage.defaultPath(method, apiPath)),
     ]);
+
+    const oldPath = storage.mockPath(method, apiPath, id);
+    const entry = index.find((e) => e.method === method && e.path === apiPath);
+    if (entry && newId !== id) {
+      entry.variants = entry.variants.map((p) => (p === oldPath ? savedPath : p));
+      if (entry.forcedVariant === id) entry.forcedVariant = newId;
+    }
     await storage.writeIndex(upsertIndex(index, method, apiPath, savedPath));
 
     if (!existingDefault) {
-      await storage.saveDefault(method, apiPath, { ...mock, meta: updatedMeta });
+      await storage.saveDefault(method, apiPath, savedMock);
     }
 
     emitLiveEvent("variants-updated", {
       action: "variant-saved",
       method,
       path: apiPath,
-      id,
+      id: newId,
     });
     emitLiveEvent("endpoints-updated", {
       action: "variant-saved",
       method,
       path: apiPath,
     });
-    return { saved: true };
+    return { saved: true, id: newId };
+  });
+
+  app.put<{
+    Body: { method?: string; path?: string; id?: string | null };
+  }>("/-/api/variant/force", async (req, reply) => {
+    const method = req.body.method?.toUpperCase();
+    const apiPath = req.body.path;
+    const id = req.body.id ?? null;
+    if (!method || !apiPath)
+      return reply
+        .code(400)
+        .send({ error: "method and path are required" });
+
+    const index = await storage.readIndex();
+    const entry = index.find((e) => e.method === method && e.path === apiPath);
+    if (!entry)
+      return reply.code(404).send({ error: "endpoint not found" });
+
+    if (id === null) {
+      delete entry.forcedVariant;
+    } else {
+      entry.forcedVariant = id;
+    }
+    await storage.writeIndex(index);
+
+    emitLiveEvent("endpoints-updated", {
+      action: "variant-forced",
+      method,
+      path: apiPath,
+      id,
+    });
+    return { forced: id };
   });
 
   app.get<{ Querystring: { method?: string; path?: string } }>(
@@ -814,6 +873,32 @@ export async function createApp(options: CreateAppOptions) {
         config.ignoredQueryParams,
       );
       const body = req.body;
+
+      const endpointIndex = await storage.readIndex();
+      const indexEntry = endpointIndex.find(
+        (e) => e.method === method && e.path === fullPath,
+      );
+      if (indexEntry?.forcedVariant) {
+        const forcedMock = await storage.readMock(
+          storage.mockPath(method, fullPath, indexEntry.forcedVariant),
+        );
+        if (forcedMock) {
+          pushRequestLog({
+            at: new Date().toISOString(),
+            method,
+            path: fullPath,
+            query,
+            match: "exact",
+            status: forcedMock.response.status,
+            prompt: forcedMock.meta.prompt,
+          });
+          return reply
+            .header("x-mock-match", "forced")
+            .code(forcedMock.response.status)
+            .headers(sanitizeReplayHeaders(forcedMock.response.headers))
+            .send(forcedMock.response.body);
+        }
+      }
 
       const variantName = buildVariantName(query, body ?? {});
       const [exact, variantFiles, defaultMock] = await Promise.all([

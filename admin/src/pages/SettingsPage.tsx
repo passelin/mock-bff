@@ -13,6 +13,10 @@ export function SettingsPage(props: {
   setProviderName: (v: string) => void;
   providerModel: string;
   setProviderModel: (v: string) => void;
+  aiSeed: string;
+  setAiSeed: (v: string) => void;
+  aiTemperature: string;
+  setAiTemperature: (v: string) => void;
   openaiBaseUrl: string;
   setOpenaiBaseUrl: (v: string) => void;
   anthropicBaseUrl: string;
@@ -71,6 +75,42 @@ export function SettingsPage(props: {
                   <RefreshCw className="h-3.5 w-3.5" />
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-3 grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-zinc-400">
+              Seed (optional)
+              <input
+                type="number"
+                value={props.aiSeed}
+                onChange={(e) => props.setAiSeed(e.target.value)}
+                placeholder="e.g. 42"
+                className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs"
+              />
+            </label>
+            <div className="mt-1 text-[11px] text-zinc-500">
+              Leave blank for random
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-zinc-400">
+              Temperature (optional)
+              <input
+                type="number"
+                min="0"
+                max="2"
+                step="0.1"
+                value={props.aiTemperature}
+                onChange={(e) => props.setAiTemperature(e.target.value)}
+                placeholder="e.g. 0.7"
+                className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs"
+              />
+            </label>
+            <div className="mt-1 text-[11px] text-zinc-500">
+              Leave blank for provider default · 0 = deterministic · 0.7 = balanced · 1+ = creative
             </div>
           </div>
         </div>

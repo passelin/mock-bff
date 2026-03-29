@@ -5,6 +5,7 @@ export interface AppConfig {
   openApiMode: OpenApiMode;
   aiEnabled: boolean;
   aiSeed?: number;
+  aiTemperature?: number;
   aiProvider?: "openai" | "anthropic" | "ollama" | "none";
   aiModel?: string;
   aiStorePrompt?: boolean;
@@ -61,6 +62,7 @@ export interface IndexEntry {
   path: string;
   variants: string[];
   defaultVariant?: string;
+  forcedVariant?: string;
 }
 
 export interface RequestLogEntry {

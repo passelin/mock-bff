@@ -1,5 +1,6 @@
+import { useMemo } from "react";
 import { Card } from "../components/Card";
-import type { Endpoint } from "../types";
+import type { Endpoint, ReqLog } from "../types";
 
 export function EndpointsPage(props: {
   filteredEndpoints: Endpoint[];
@@ -16,7 +17,17 @@ export function EndpointsPage(props: {
   clearEndpoint: (method: string, path: string) => void;
   clearSelectedEndpoints: () => void;
   busy: boolean;
+  requests: ReqLog[];
 }) {
+  const hitCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const r of props.requests) {
+      const key = `${r.method} ${r.path}`;
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  }, [props.requests]);
+
   const selectedCount = props.filteredEndpoints.filter(
     (ep) => props.selectedEndpointKeys[`${ep.method} ${ep.path}`],
   ).length;
@@ -61,7 +72,7 @@ export function EndpointsPage(props: {
               <th className="w-24 px-3 py-2 text-left">Method</th>
               <th className="px-3 py-2 text-left">Path</th>
               <th className="w-20 px-3 py-2 text-left">Variants</th>
-              <th className="w-20 px-3 py-2 text-left">Default</th>
+              <th className="w-16 px-3 py-2 text-left">Hits</th>
               <th className="w-24 px-3 py-2 text-left"></th>
             </tr>
           </thead>
@@ -91,8 +102,8 @@ export function EndpointsPage(props: {
                 </td>
                 <td className="px-3 py-2 font-mono break-all">{ep.path}</td>
                 <td className="px-3 py-2 whitespace-nowrap">{ep.variants}</td>
-                <td className="px-3 py-2 whitespace-nowrap">
-                  {ep.hasDefault ? "Yes" : "No"}
+                <td className="px-3 py-2 whitespace-nowrap text-zinc-400">
+                  {hitCounts[`${ep.method} ${ep.path}`] ?? 0}
                 </td>
                 <td className="px-3 py-2">
                   <button

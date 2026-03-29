@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.2] - 2026-03-29
+
+### Changed
+- `DEFAULT_PROMPT_TEMPLATE` exported from `ai.ts` and reused in `storage.ts`, removing the duplicate hardcoded copy from the default config
+
 ## [0.5.1] - 2026-03-28
 
 ### Fixed

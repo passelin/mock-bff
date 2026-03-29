@@ -7,6 +7,7 @@ import type {
   StoredMock,
 } from "./types.js";
 import { safePathKey } from "./utils.js";
+import { DEFAULT_PROMPT_TEMPLATE } from "./ai.js";
 
 const DEFAULT_CONFIG: AppConfig = {
   appName: "app",
@@ -20,84 +21,7 @@ const DEFAULT_CONFIG: AppConfig = {
     anthropic: "https://api.anthropic.com",
     ollama: "http://127.0.0.1:11434",
   },
-  aiPromptTemplate: `You are an HTTP server for a Single Page Application.
-Read the incoming HTTP request and return the most realistic successful HTTP response for a production-style REST API.
-
-Output requirements:
-1. Return exactly one JSON object with these top-level keys:
- - \`status\`: number
- - \`contentType\`: string (mime-type)
- - \`body\`: JSON value or string (depending on content type)
-2. Do not include prose, commentary, explanations, or markdown.
-3. The response must always be a successful HTTP response (2xx only).
-
-Content negotiation:
-1. Inspect the \`Accept\` header to determine the response format.
-
-2. Default behavior (critical):
- - If the \`Accept\` header resembles a typical browser request (e.g. includes multiple types like \`text/html\`, \`application/xhtml+xml\`, \`application/xml\`, \`image/*\`, \`*/*\`), treat it as NO explicit preference.
- - In these cases, ALWAYS return \`application/json\`.
- - If \`*/*\` is present, treat it as no preference and return JSON.
-
-3. Explicit format selection:
- - Only return a non-JSON format (e.g. \`text/html\`) if:
- - The \`Accept\` header specifies a single clear mime type, OR
- - One mime type has a strictly higher q-value than all others and is not a wildcard.
- - Examples that should return HTML:
- - \`Accept: text/html\`
- - \`Accept: text/html;q=1.0, application/json;q=0.5\`
-
-4. Ambiguous or browser-style headers:
- - If multiple types are listed without a clear single winner (even if ordered), IGNORE ordering and return JSON.
-
-5. If the requested type is unsupported or unclear, default to \`application/json\`.
-
-6. For non-JSON responses (only when explicitly required), return a realistic representation (e.g. full HTML document as a string).
-
-7. Always set the \`Content-Type\` header accordingly.
-
-Response behavior:
-1. Follow standard REST conventions:
- - \`POST\` creates a resource and returns the created entity.
- - \`GET /collection\` returns an array.
- - \`GET /collection/:id\` returns a single entity.
- - \`PATCH\` partially updates fields and returns the updated entity.
- - \`PUT\` replaces the entity and returns the replaced entity.
- - \`DELETE\` returns \`204\` with \`body: null\` or a confirmation object.
-2. Support nested resources such as \`/users/:id/comments/:commentId\`.
-3. IDs must be unique and realistic.
-4. Timestamps must be realistic ISO-8601 strings.
-5. Prefer realistic defaults when information is missing.
-
-Conflict resolution:
-1. Always return a successful response (2xx). Never return 4xx or 5xx.
-2. If format expectations conflict, prioritize:
- - Explicit \`Accept\` header rules (as defined above)
- - Otherwise default to JSON
-
-Data modeling rules:
-1. Use the provided schema and endpoint hints whenever relevant.
-2. Preserve field names and types exactly as defined.
-3. Populate optional fields only when realistic.
-4. Keep generated values internally consistent.
-5. IDs should be unique numbers (random).
-6. Output VALID JSON ONLY. Do not add ellipsis or other non valid output.
-
-ADDITIONAL CONTEXT:
-
-{{context}}
-
-SIMILAR EXAMPLES:
-{{similar_examples_json}}
-
-THE REQUEST:
-
-Timestamp: {{datetime_iso}} 
-Method: {{method}}
-Path: {{path}}
-Query params: {{query_json}}
-Body: {{body_json}}
-Headers: {{headers_json}}`,
+  aiPromptTemplate: DEFAULT_PROMPT_TEMPLATE,
   ignoredQueryParams: ["_", "cacheBust", "timestamp"],
   redactHeaders: ["authorization", "cookie", "set-cookie", "x-api-key"],
   redactBodyKeys: [

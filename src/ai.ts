@@ -143,7 +143,7 @@ Data modeling rules:
 5. IDs should be unique numbers (random).
 6. Output VALID JSON ONLY. Do not add ellipsis or other non valid output.`;
 
-const DEFAULT_PROMPT_TEMPLATE = `ADDITIONAL CONTEXT:
+export const DEFAULT_PROMPT_TEMPLATE = `ADDITIONAL CONTEXT:
 {{context}}
 
 SIMILAR EXAMPLES:
@@ -324,7 +324,9 @@ export async function generateMockResponse(
       model,
       system: SYSTEM_PROMPT,
       prompt,
-      ...(config.aiTemperature !== undefined ? { temperature: config.aiTemperature } : {}),
+      ...(config.aiTemperature !== undefined
+        ? { temperature: config.aiTemperature }
+        : {}),
       providerOptions:
         config.aiSeed !== undefined
           ? { openai: { seed: config.aiSeed } }

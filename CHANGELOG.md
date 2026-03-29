@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0] - 2026-03-28
+
+### Added
+- Force variant: pin a specific variant per endpoint to always be returned regardless of request shape, with toggle UI in the variants panel
+- AI generation seed and temperature are now configurable in the settings UI; both default to the provider's own default when left blank
+- Endpoints table now shows a "Hits" column with the count from recent request logs
+
+### Changed
+- Static AI system instructions moved to a hardcoded system prompt, separate from the user-configurable prompt template
+- Variant editor strips `requestSignature` and `meta` (read-only fields); server preserves and rebuilds them on save, renaming the variant file when the request snapshot changes
+- Logs tab moved after OpenAPI in the navigation
+
 ## [0.4.6] - 2026-03-26
 
 ### Fixed

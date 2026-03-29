@@ -646,7 +646,8 @@ export async function createApp(options: CreateAppOptions) {
     const preservedMeta = existing?.meta ?? mock.meta;
 
     const snap = mock.requestSnapshot ?? existing?.requestSnapshot;
-    const newId = snap !== undefined ? buildVariantName(snap.query, snap.body ?? {}) : id;
+    const isHashId = /^q_([a-f0-9]{8}|empty)__b_([a-f0-9]{8}|empty)$/.test(id);
+    const newId = isHashId && snap !== undefined ? buildVariantName(snap.query, snap.body ?? {}) : id;
 
     const rebuiltSignature = {
       method,

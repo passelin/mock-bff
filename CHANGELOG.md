@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.1] - 2026-03-28
+
+### Fixed
+- Variant rename on save no longer applies to manually-named variants (e.g. `v1`, `default_manual`); only auto-generated hash ids (`q_…__b_…`) are renamed when the request snapshot changes
+
 ## [0.5.0] - 2026-03-28
 
 ### Added

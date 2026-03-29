@@ -28,21 +28,25 @@ export function matchMock(args: {
   variants: StoredMock[];
   defaultMock?: StoredMock;
   requestBody: unknown;
+  fuzzyDisabled?: boolean;
 }): MatchResult {
   if (args.exact) return { type: "exact", mock: args.exact };
 
-  let best: StoredMock | undefined;
-  let bestScore = 0;
+  if (!args.fuzzyDisabled) {
+    let best: StoredMock | undefined;
+    let bestScore = 0;
 
-  for (const v of args.variants) {
-    const score = scoreCandidate(args.requestBody, v.requestSnapshot?.body);
-    if (score > bestScore) {
-      best = v;
-      bestScore = score;
+    for (const v of args.variants) {
+      const score = scoreCandidate(args.requestBody, v.requestSnapshot?.body);
+      if (score > bestScore) {
+        best = v;
+        bestScore = score;
+      }
     }
+
+    if (best && bestScore >= 0.4) return { type: "fuzzy", mock: best };
   }
 
-  if (best && bestScore >= 0.4) return { type: "fuzzy", mock: best };
-  if (args.defaultMock) return { type: "default", mock: args.defaultMock };
+  if (!args.fuzzyDisabled && args.defaultMock) return { type: "default", mock: args.defaultMock };
   return { type: "miss" };
 }

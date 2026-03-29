@@ -108,6 +108,7 @@ export function App() {
   const [selectedPath, setSelectedPath] = useState("");
   const [variantList, setVariantList] = useState<VariantMeta[]>([]);
   const [forcedVariantId, setForcedVariantId] = useState<string | undefined>(undefined);
+  const [fuzzyDisabled, setFuzzyDisabled] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const [variantEditor, setVariantEditor] = useState("");
   const [createMethod, setCreateMethod] = useState("GET");
@@ -335,6 +336,7 @@ export function App() {
     const variants = data.variants ?? [];
     setVariantList(variants);
     setForcedVariantId(data.forcedVariant ?? undefined);
+    setFuzzyDisabled(Boolean(data.fuzzyDisabled));
 
     if (variants.length === 1) {
       const onlyId = variants[0].id;
@@ -419,6 +421,26 @@ export function App() {
       showToast("Variant saved");
     } catch {
       showToast("Variant save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleFuzzy() {
+    if (!selectedMethod || !selectedPath) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/-/api/endpoint/fuzzy", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ method: selectedMethod, path: selectedPath, disabled: !fuzzyDisabled }),
+      });
+      if (!res.ok) throw new Error("toggle failed");
+      const next = !fuzzyDisabled;
+      await Promise.all([loadEndpoints(), loadVariants(selectedMethod, selectedPath)]);
+      showToast(next ? "Fuzzy matching disabled" : "Fuzzy matching enabled");
+    } catch {
+      showToast("Failed to toggle fuzzy matching");
     } finally {
       setBusy(false);
     }
@@ -675,6 +697,9 @@ export function App() {
                 clearSelectedEndpoints={clearSelectedEndpoints}
                 busy={busy}
                 requests={requests}
+                harFile={harFile}
+                setHarFile={setHarFile}
+                uploadFile={uploadFile}
               />
             }
           />
@@ -705,6 +730,8 @@ export function App() {
                 variantList={variantList}
                 forcedVariantId={forcedVariantId}
                 forceVariant={forceVariant}
+                fuzzyDisabled={fuzzyDisabled}
+                toggleFuzzy={toggleFuzzy}
                 selectedVariantId={selectedVariantId}
                 selectVariant={selectVariant}
                 deleteVariant={deleteVariant}

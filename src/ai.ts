@@ -54,6 +54,7 @@ export interface AiGenerateInput {
   nearbyExamples: Array<{
     method: string;
     path: string;
+    contentType?: string;
     responseBody: unknown;
     label?: string;
   }>;

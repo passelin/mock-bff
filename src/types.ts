@@ -63,6 +63,7 @@ export interface IndexEntry {
   variants: string[];
   defaultVariant?: string;
   forcedVariant?: string;
+  fuzzyDisabled?: boolean;
 }
 
 export interface RequestLogEntry {

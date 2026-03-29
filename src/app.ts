@@ -106,6 +106,7 @@ async function collectSimilarExamples(args: {
   const out: Array<{
     method: string;
     path: string;
+    contentType?: string;
     responseBody: unknown;
     label: string;
   }> = [];
@@ -117,6 +118,7 @@ async function collectSimilarExamples(args: {
     out.push({
       method: c.method,
       path: c.path,
+      contentType: first.response.headers["content-type"],
       responseBody: first.response.body,
       label: `similar-request:${c.method} ${c.path}`,
     });
@@ -125,23 +127,6 @@ async function collectSimilarExamples(args: {
   return out;
 }
 
-function summarizeBodyShape(body: unknown): string {
-  if (!body || typeof body !== "object") return typeof body;
-  if (Array.isArray(body)) return `array(len=${body.length})`;
-  const keys = Object.keys(body as Record<string, unknown>).slice(0, 12);
-  return `object{${keys.join(", ")}}`;
-}
-
-function shouldWriteContextInsight(args: {
-  index: IndexEntry[];
-  method: string;
-  path: string;
-}): boolean {
-  const tpl = normalizePathTemplate(args.path);
-  return !args.index.some(
-    (e) => e.method === args.method && normalizePathTemplate(e.path) === tpl,
-  );
-}
 
 function pickPriorityKey(obj: Record<string, unknown>): string | undefined {
   const keys = Object.keys(obj);
@@ -459,6 +444,7 @@ export async function createApp(options: CreateAppOptions) {
       variants: e.variants.length,
       hasDefault: Boolean(e.defaultVariant),
       forcedVariant: e.forcedVariant,
+      fuzzyDisabled: Boolean(e.fuzzyDisabled),
     }));
   });
 
@@ -568,7 +554,7 @@ export async function createApp(options: CreateAppOptions) {
 
       const idx = await storage.readIndex();
       const entry = idx.find((e) => e.method === method && e.path === apiPath);
-      return { method, path: apiPath, variants: items, forcedVariant: entry?.forcedVariant };
+      return { method, path: apiPath, variants: items, forcedVariant: entry?.forcedVariant, fuzzyDisabled: Boolean(entry?.fuzzyDisabled) };
     },
   );
 
@@ -724,6 +710,38 @@ export async function createApp(options: CreateAppOptions) {
       id,
     });
     return { forced: id };
+  });
+
+  app.put<{
+    Body: { method?: string; path?: string; disabled?: boolean };
+  }>("/-/api/endpoint/fuzzy", async (req, reply) => {
+    const method = req.body.method?.toUpperCase();
+    const apiPath = req.body.path;
+    const disabled = Boolean(req.body.disabled);
+    if (!method || !apiPath)
+      return reply
+        .code(400)
+        .send({ error: "method and path are required" });
+
+    const index = await storage.readIndex();
+    const entry = index.find((e) => e.method === method && e.path === apiPath);
+    if (!entry)
+      return reply.code(404).send({ error: "endpoint not found" });
+
+    if (disabled) {
+      entry.fuzzyDisabled = true;
+    } else {
+      delete entry.fuzzyDisabled;
+    }
+    await storage.writeIndex(index);
+
+    emitLiveEvent("endpoints-updated", {
+      action: "fuzzy-toggled",
+      method,
+      path: apiPath,
+      fuzzyDisabled: disabled,
+    });
+    return { fuzzyDisabled: disabled };
   });
 
   app.get<{ Querystring: { method?: string; path?: string } }>(
@@ -916,6 +934,7 @@ export async function createApp(options: CreateAppOptions) {
         variants,
         defaultMock,
         requestBody: body,
+        fuzzyDisabled: indexEntry?.fuzzyDisabled,
       });
       if (match.type !== "miss" && match.mock) {
         pushRequestLog({
@@ -990,12 +1009,20 @@ export async function createApp(options: CreateAppOptions) {
         >,
         context: mergedContext,
         nearbyExamples: [
-          ...variants.slice(0, 5).map((v) => ({
-            method,
-            path: fullPath,
-            responseBody: v.response.body,
-            label: `same-endpoint:${method} ${fullPath}`,
-          })),
+          ...(variants.length > 0
+            ? [
+                variants[0],
+                ...variants.slice(1).filter((v) => JSON.stringify(v.response.body).length <= 2000),
+              ]
+                .slice(0, 5)
+                .map((v) => ({
+                  method,
+                  path: fullPath,
+                  contentType: v.response.headers["content-type"],
+                  responseBody: v.response.body,
+                  label: `same-endpoint:${method} ${fullPath}`,
+                }))
+            : []),
           ...similarExamples,
         ],
       };

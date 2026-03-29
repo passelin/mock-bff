@@ -26,6 +26,8 @@ export function VariantsPage(props: {
   variantList: VariantMeta[];
   forcedVariantId: string | undefined;
   forceVariant: (id: string | null) => void;
+  fuzzyDisabled: boolean;
+  toggleFuzzy: () => void;
   selectedVariantId: string;
   selectVariant: (id: string) => void;
   deleteVariant: (id: string) => void;
@@ -146,6 +148,17 @@ export function VariantsPage(props: {
               props.selectedMethod && props.selectedPath
                 ? `Endpoint: ${props.selectedMethod} ${props.selectedPath}`
                 : "Select an endpoint from the list above first."
+            }
+            actions={
+              props.selectedMethod && props.selectedPath ? (
+                <button
+                  onClick={props.toggleFuzzy}
+                  title={props.fuzzyDisabled ? "Fuzzy matching disabled — click to enable" : "Fuzzy matching enabled — click to disable"}
+                  className={`rounded-xl border px-3 py-2 text-xs ${props.fuzzyDisabled ? "border-amber-600 bg-amber-500/10 text-amber-400" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}
+                >
+                  {props.fuzzyDisabled ? "Fuzzy off" : "Fuzzy on"}
+                </button>
+              ) : null
             }
           >
             <div className="space-y-2 max-h-80 overflow-auto">

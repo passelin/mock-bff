@@ -4,6 +4,7 @@ export type Endpoint = {
   variants: number;
   hasDefault: boolean;
   forcedVariant?: string;
+  fuzzyDisabled?: boolean;
 };
 
 export type VariantMeta = {

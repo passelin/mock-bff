@@ -41,9 +41,32 @@ Admin APIs are under:
 
 ## 4) Manage endpoints and variants
 
-- **Endpoints route**: search/select/delete selected endpoint groups
+- **Endpoints route**: search/select/delete endpoint groups; import a HAR file directly from this page
 - **Variants route**: create endpoint+variant, pick endpoint, edit variant, delete variant
 - If an endpoint has one variant, it auto-selects in editor
+
+### Force a variant
+
+Pin a specific variant so it is always returned for an endpoint regardless of the incoming request body or query:
+
+1. Open the **Variants** route and select an endpoint
+2. Click the **pin** icon on any variant row — the row highlights in amber and a "forced" badge appears
+3. Click the **pin-off** icon on a forced variant to clear it
+
+API: `PUT /-/api/variant/force` `{ method, path, id }` — pass `id: null` to clear.
+
+Only one variant per endpoint can be forced at a time.
+
+### Disable fuzzy matching for an endpoint
+
+By default, if no exact variant matches an incoming request, mock-bff tries a fuzzy match (body-key overlap ≥ 40%). To require an exact match instead (falling back to default/AI generation on misses):
+
+1. Select an endpoint in the **Variants** route
+2. Click the **Fuzzy on** button in the Variants card header — it turns amber and reads **Fuzzy off**
+
+Useful when you have many variants with similar body shapes and want AI to generate fresh responses for new inputs rather than returning a close-but-wrong variant.
+
+API: `PUT /-/api/endpoint/fuzzy` `{ method, path, disabled: true|false }`
 
 ## 5) Logs and misses
 

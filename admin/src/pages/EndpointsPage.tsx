@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Card } from "../components/Card";
+import { HarUploadCard } from "../components/HarUploadCard";
 import type { Endpoint, ReqLog } from "../types";
 
 export function EndpointsPage(props: {
@@ -18,6 +19,9 @@ export function EndpointsPage(props: {
   clearSelectedEndpoints: () => void;
   busy: boolean;
   requests: ReqLog[];
+  harFile: File | null;
+  setHarFile: (f: File | null) => void;
+  uploadFile: (route: string, file: File | null, successMsg: string) => void;
 }) {
   const hitCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -33,6 +37,8 @@ export function EndpointsPage(props: {
   ).length;
 
   return (
+    <div className="space-y-6">
+    <HarUploadCard busy={props.busy} harFile={props.harFile} setHarFile={props.setHarFile} uploadFile={props.uploadFile} />
     <Card
       title="Endpoint Management"
       subtitle="Search, review and clear endpoint groups."
@@ -126,5 +132,6 @@ export function EndpointsPage(props: {
         </table>
       </div>
     </Card>
+    </div>
   );
 }

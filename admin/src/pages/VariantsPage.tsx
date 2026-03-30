@@ -1,4 +1,5 @@
-import { Pin, PinOff, Plus, Trash2 } from "lucide-react";
+import { Pin, PinOff, Plus, Replace, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { Card } from "../components/Card";
 import type { Endpoint, VariantMeta } from "../types";
 
@@ -40,6 +41,20 @@ export function VariantsPage(props: {
   const selectedCount = props.filteredEndpoints.filter(
     (ep) => props.selectedEndpointKeys[`${ep.method} ${ep.path}`],
   ).length;
+
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [replaceTerm, setReplaceTerm] = useState("");
+
+  const matchCount =
+    showSearch && searchTerm
+      ? (props.variantEditor.split(searchTerm).length - 1)
+      : 0;
+
+  function replaceAll() {
+    if (!searchTerm) return;
+    props.setVariantEditor(props.variantEditor.split(searchTerm).join(replaceTerm));
+  }
 
   return (
     <>
@@ -189,6 +204,11 @@ export function VariantsPage(props: {
                         </div>
                         <div className="text-xs text-zinc-400 mt-1 flex items-center gap-1">
                           {v.source} · status {v.status}
+                          {v.updatedAt && (
+                            <span title={v.updatedAt}>
+                              · {new Date(v.updatedAt).toLocaleString()}
+                            </span>
+                          )}
                           {isForced && (
                             <span className="ml-1 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
                               forced
@@ -238,6 +258,14 @@ export function VariantsPage(props: {
             actions={
               <div className="flex gap-2">
                 <button
+                  onClick={() => setShowSearch((s) => !s)}
+                  disabled={!props.selectedVariantId}
+                  title="Search / replace"
+                  className={`rounded-xl border px-3 py-2 text-xs ${showSearch ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-zinc-700 text-zinc-400 hover:bg-zinc-800"}`}
+                >
+                  <Replace className="h-3.5 w-3.5" />
+                </button>
+                <button
                   onClick={() => {
                     try {
                       props.setVariantEditor(
@@ -268,6 +296,36 @@ export function VariantsPage(props: {
               </div>
             }
           >
+            {showSearch && (
+              <div className="mb-3 flex flex-col gap-2 rounded-xl border border-zinc-700 bg-zinc-900 p-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search…"
+                    className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 font-mono text-xs"
+                  />
+                  <span className="min-w-[3rem] text-right text-xs text-zinc-500">
+                    {searchTerm ? `${matchCount} match${matchCount === 1 ? "" : "es"}` : ""}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={replaceTerm}
+                    onChange={(e) => setReplaceTerm(e.target.value)}
+                    placeholder="Replace with…"
+                    className="flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 font-mono text-xs"
+                  />
+                  <button
+                    onClick={replaceAll}
+                    disabled={!searchTerm || matchCount === 0}
+                    className="rounded-lg border border-zinc-600 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:opacity-40"
+                  >
+                    Replace all
+                  </button>
+                </div>
+              </div>
+            )}
             <textarea
               value={props.variantEditor}
               onChange={(e) => props.setVariantEditor(e.target.value)}

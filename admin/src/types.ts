@@ -13,6 +13,7 @@ export type VariantMeta = {
   source?: string;
   status?: number;
   createdAt?: string;
+  updatedAt?: string;
   displayLabel?: string;
 };
 

@@ -2,7 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
-import { access, readFile, rm, writeFile } from "node:fs/promises";
+import { access, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,7 +22,12 @@ import {
   loadOpenApiFile,
   validateResponseWithOpenApi,
 } from "./openapi.js";
-import type { AppConfig, IndexEntry, RequestLogEntry, StoredMock } from "./types.js";
+import type {
+  AppConfig,
+  IndexEntry,
+  RequestLogEntry,
+  StoredMock,
+} from "./types.js";
 
 const DROPPED_REPLAY_HEADERS = [
   "content-encoding",
@@ -50,7 +55,6 @@ function maskApiKey(value?: string): string | null {
   if (!trimmed) return null;
   return `${trimmed.slice(0, 6)}…`;
 }
-
 
 export interface CreateAppOptions {
   rootDir: string;
@@ -127,7 +131,6 @@ async function collectSimilarExamples(args: {
   return out;
 }
 
-
 function pickPriorityKey(obj: Record<string, unknown>): string | undefined {
   const keys = Object.keys(obj);
   if (keys.length === 0) return undefined;
@@ -168,7 +171,9 @@ function upsertIndex(
 
 export async function createApp(options: CreateAppOptions) {
   const app = Fastify({ logger: false });
-  const storage = new MockStorage(options.mocksDir ?? path.join(options.rootDir, "mocks"));
+  const storage = new MockStorage(
+    options.mocksDir ?? path.join(options.rootDir, "mocks"),
+  );
   await storage.ensureLayout();
   let packageVersion = "unknown";
   try {
@@ -208,7 +213,24 @@ export async function createApp(options: CreateAppOptions) {
   const initialConfig = await storage.readConfig();
   await storage.writeConfig({ ...initialConfig, appName: options.appName });
 
-  await app.register(cors);
+  app.addHook("onSend", (_req, reply, _payload, done) => {
+    process.stderr.write(
+      `${JSON.stringify({
+        level: "info",
+        ts: new Date().toISOString(),
+        kind: "mock-bff-response",
+        method: _req.method,
+        url: _req.url,
+        status: reply.statusCode,
+      })}\n`,
+    );
+    done();
+  });
+
+  await app.register(cors, {
+    origin: true,
+    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+  });
   await app.register(multipart, {
     limits: {
       fileSize: Number(process.env.MOCK_MAX_UPLOAD_BYTES || 250 * 1024 * 1024),
@@ -247,10 +269,15 @@ export async function createApp(options: CreateAppOptions) {
 
   app.get("/-/admin", async (_req, reply) => {
     try {
-      const html = await readFile(path.join(adminDistDir, "index.html"), "utf8");
+      const html = await readFile(
+        path.join(adminDistDir, "index.html"),
+        "utf8",
+      );
       return reply.type("text/html").send(html);
     } catch {
-      return reply.code(500).send({ error: "Admin UI not built. Run: npm run build:admin" });
+      return reply
+        .code(500)
+        .send({ error: "Admin UI not built. Run: npm run build:admin" });
     }
   });
 
@@ -302,21 +329,26 @@ export async function createApp(options: CreateAppOptions) {
     ollamaBase: string,
   ) {
     return {
-      current: { provider: cfg.aiProvider ?? "openai", model: cfg.aiModel ?? "" },
+      current: {
+        provider: cfg.aiProvider ?? "openai",
+        model: cfg.aiModel ?? "",
+      },
       providers: {
         openai: {
           models: openai.models,
           disabled: openai.disabled,
           baseUrl: openaiBase,
           apiKeyPreview: maskApiKey(process.env.OPENAI_API_KEY),
-          apiKeyHint: "Set OPENAI_API_KEY before starting dev server (e.g. export OPENAI_API_KEY=...).",
+          apiKeyHint:
+            "Set OPENAI_API_KEY before starting dev server (e.g. export OPENAI_API_KEY=...).",
         },
         anthropic: {
           models: anthropic.models,
           disabled: anthropic.disabled,
           baseUrl: anthropicBase,
           apiKeyPreview: maskApiKey(process.env.ANTHROPIC_API_KEY),
-          apiKeyHint: "Set ANTHROPIC_API_KEY before starting dev server (e.g. export ANTHROPIC_API_KEY=...).",
+          apiKeyHint:
+            "Set ANTHROPIC_API_KEY before starting dev server (e.g. export ANTHROPIC_API_KEY=...).",
         },
         ollama: {
           models: ollamaModels.length ? ollamaModels : ollamaFallbackModels(),
@@ -330,7 +362,8 @@ export async function createApp(options: CreateAppOptions) {
           disabled: false,
           baseUrl: null,
           apiKeyPreview: null,
-          apiKeyHint: "Disables model calls and uses deterministic fallback generation.",
+          apiKeyHint:
+            "Disables model calls and uses deterministic fallback generation.",
         },
       },
     };
@@ -338,14 +371,28 @@ export async function createApp(options: CreateAppOptions) {
 
   app.get("/-/api/providers", async () => {
     const cfg = await storage.readConfig();
-    const openaiBase = process.env.OPENAI_BASE_URL ?? cfg.providerBaseUrls?.openai;
-    const anthropicBase = process.env.ANTHROPIC_BASE_URL ?? cfg.providerBaseUrls?.anthropic;
+    const openaiBase =
+      process.env.OPENAI_BASE_URL ?? cfg.providerBaseUrls?.openai;
+    const anthropicBase =
+      process.env.ANTHROPIC_BASE_URL ?? cfg.providerBaseUrls?.anthropic;
     const ollamaBase =
-      process.env.OLLAMA_BASE_URL ?? cfg.providerBaseUrls?.ollama ?? "http://127.0.0.1:11434";
+      process.env.OLLAMA_BASE_URL ??
+      cfg.providerBaseUrls?.ollama ??
+      "http://127.0.0.1:11434";
 
     const [openai, anthropic] = await Promise.all([
-      providerCache.openai ?? listOpenAiModels(openaiBase, process.env.OPENAI_API_KEY).then((r) => { providerCache.openai = r; return r; }),
-      providerCache.anthropic ?? listAnthropicModels(anthropicBase, process.env.ANTHROPIC_API_KEY).then((r) => { providerCache.anthropic = r; return r; }),
+      providerCache.openai ??
+        listOpenAiModels(openaiBase, process.env.OPENAI_API_KEY).then((r) => {
+          providerCache.openai = r;
+          return r;
+        }),
+      providerCache.anthropic ??
+        listAnthropicModels(anthropicBase, process.env.ANTHROPIC_API_KEY).then(
+          (r) => {
+            providerCache.anthropic = r;
+            return r;
+          },
+        ),
     ]);
 
     if (!providerCache.ollama || providerCache.ollama.base !== ollamaBase) {
@@ -353,13 +400,23 @@ export async function createApp(options: CreateAppOptions) {
       providerCache.ollama = { models, base: ollamaBase };
     }
 
-    return buildProvidersResponse(cfg, openai, anthropic, providerCache.ollama.models, openaiBase, anthropicBase, ollamaBase);
+    return buildProvidersResponse(
+      cfg,
+      openai,
+      anthropic,
+      providerCache.ollama.models,
+      openaiBase,
+      anthropicBase,
+      ollamaBase,
+    );
   });
 
   app.post("/-/api/providers/ollama/refresh", async () => {
     const cfg = await storage.readConfig();
     const ollamaBase =
-      process.env.OLLAMA_BASE_URL ?? cfg.providerBaseUrls?.ollama ?? "http://127.0.0.1:11434";
+      process.env.OLLAMA_BASE_URL ??
+      cfg.providerBaseUrls?.ollama ??
+      "http://127.0.0.1:11434";
     const models = await listOllamaModels(ollamaBase);
     providerCache.ollama = { models, base: ollamaBase };
     return { models: models.length ? models : ollamaFallbackModels() };
@@ -496,6 +553,7 @@ export async function createApp(options: CreateAppOptions) {
         source?: string;
         status?: number;
         createdAt?: string;
+        updatedAt?: string;
         displayLabel?: string;
       }>;
 
@@ -542,19 +600,27 @@ export async function createApp(options: CreateAppOptions) {
         const displayLabel =
           [queryStr || "", bodyStr || ""].filter(Boolean).join(" · ") ||
           (method === "GET" ? "No query params" : id);
+        const fileStat = await stat(file).catch(() => null);
         items.push({
           id,
           file,
           source: mock?.meta.source,
           status: mock?.response.status,
           createdAt: mock?.meta.createdAt,
+          updatedAt: fileStat?.mtime.toISOString(),
           displayLabel,
         });
       }
 
       const idx = await storage.readIndex();
       const entry = idx.find((e) => e.method === method && e.path === apiPath);
-      return { method, path: apiPath, variants: items, forcedVariant: entry?.forcedVariant, fuzzyDisabled: Boolean(entry?.fuzzyDisabled) };
+      return {
+        method,
+        path: apiPath,
+        variants: items,
+        forcedVariant: entry?.forcedVariant,
+        fuzzyDisabled: Boolean(entry?.fuzzyDisabled),
+      };
     },
   );
 
@@ -628,12 +694,17 @@ export async function createApp(options: CreateAppOptions) {
         .code(400)
         .send({ error: "method, path, id, mock are required" });
 
-    const existing = await storage.readMock(storage.mockPath(method, apiPath, id));
+    const existing = await storage.readMock(
+      storage.mockPath(method, apiPath, id),
+    );
     const preservedMeta = existing?.meta ?? mock.meta;
 
     const snap = mock.requestSnapshot ?? existing?.requestSnapshot;
     const isHashId = /^q_([a-f0-9]{8}|empty)__b_([a-f0-9]{8}|empty)$/.test(id);
-    const newId = isHashId && snap !== undefined ? buildVariantName(snap.query, snap.body ?? {}) : id;
+    const newId =
+      isHashId && snap !== undefined
+        ? buildVariantName(snap.query, snap.body ?? {})
+        : id;
 
     const rebuiltSignature = {
       method,
@@ -642,8 +713,18 @@ export async function createApp(options: CreateAppOptions) {
       bodyHash: newId.match(/__b_(.+)$/)?.[1] ?? "manual",
     };
 
-    const savedMock = { ...mock, requestSignature: rebuiltSignature, requestSnapshot: snap, meta: preservedMeta };
-    const savedPath = await storage.saveVariant(method, apiPath, newId, savedMock);
+    const savedMock = {
+      ...mock,
+      requestSignature: rebuiltSignature,
+      requestSnapshot: snap,
+      meta: preservedMeta,
+    };
+    const savedPath = await storage.saveVariant(
+      method,
+      apiPath,
+      newId,
+      savedMock,
+    );
 
     if (newId !== id) {
       await storage.clearVariant(method, apiPath, id);
@@ -657,7 +738,9 @@ export async function createApp(options: CreateAppOptions) {
     const oldPath = storage.mockPath(method, apiPath, id);
     const entry = index.find((e) => e.method === method && e.path === apiPath);
     if (entry && newId !== id) {
-      entry.variants = entry.variants.map((p) => (p === oldPath ? savedPath : p));
+      entry.variants = entry.variants.map((p) =>
+        p === oldPath ? savedPath : p,
+      );
       if (entry.forcedVariant === id) entry.forcedVariant = newId;
     }
     await storage.writeIndex(upsertIndex(index, method, apiPath, savedPath));
@@ -687,14 +770,11 @@ export async function createApp(options: CreateAppOptions) {
     const apiPath = req.body.path;
     const id = req.body.id ?? null;
     if (!method || !apiPath)
-      return reply
-        .code(400)
-        .send({ error: "method and path are required" });
+      return reply.code(400).send({ error: "method and path are required" });
 
     const index = await storage.readIndex();
     const entry = index.find((e) => e.method === method && e.path === apiPath);
-    if (!entry)
-      return reply.code(404).send({ error: "endpoint not found" });
+    if (!entry) return reply.code(404).send({ error: "endpoint not found" });
 
     if (id === null) {
       delete entry.forcedVariant;
@@ -719,14 +799,11 @@ export async function createApp(options: CreateAppOptions) {
     const apiPath = req.body.path;
     const disabled = Boolean(req.body.disabled);
     if (!method || !apiPath)
-      return reply
-        .code(400)
-        .send({ error: "method and path are required" });
+      return reply.code(400).send({ error: "method and path are required" });
 
     const index = await storage.readIndex();
     const entry = index.find((e) => e.method === method && e.path === apiPath);
-    if (!entry)
-      return reply.code(404).send({ error: "endpoint not found" });
+    if (!entry) return reply.code(404).send({ error: "endpoint not found" });
 
     if (disabled) {
       entry.fuzzyDisabled = true;
@@ -1010,18 +1087,34 @@ export async function createApp(options: CreateAppOptions) {
         context: mergedContext,
         nearbyExamples: [
           ...(variants.length > 0
-            ? [
-                variants[0],
-                ...variants.slice(1).filter((v) => JSON.stringify(v.response.body).length <= 2000),
-              ]
-                .slice(0, 5)
-                .map((v) => ({
+            ? (() => {
+                const hasBody = (v: StoredMock) => {
+                  const b = v.response.body;
+                  return (
+                    b !== null &&
+                    b !== undefined &&
+                    !(
+                      typeof b === "object" &&
+                      !Array.isArray(b) &&
+                      Object.keys(b as object).length === 0
+                    )
+                  );
+                };
+                const anchor = variants.find(hasBody) ?? variants[0];
+                const rest = variants.filter(
+                  (v) =>
+                    v !== anchor &&
+                    hasBody(v) &&
+                    JSON.stringify(v.response.body).length <= 4000,
+                );
+                return [anchor, ...rest].slice(0, 5).map((v) => ({
                   method,
                   path: fullPath,
                   contentType: v.response.headers["content-type"],
                   responseBody: v.response.body,
-                  label: `same-endpoint:${method} ${fullPath}`,
-                }))
+                  label: `same-endpoint: ${method} ${fullPath}`,
+                }));
+              })()
             : []),
           ...similarExamples,
         ],

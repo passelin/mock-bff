@@ -45,6 +45,10 @@ Admin APIs are under:
 - **Variants route**: create endpoint+variant, pick endpoint, edit variant, delete variant
 - If an endpoint has one variant, it auto-selects in editor
 
+### Variant editor — search and replace
+
+Click the **replace icon** (⇄) in the Variant Editor card header to open a search/replace bar. Type a search string to see the match count, enter a replacement string and click **Replace all** to apply. Useful for bulk-editing IDs, hostnames, or field values across a large JSON body.
+
 ### Force a variant
 
 Pin a specific variant so it is always returned for an endpoint regardless of the incoming request body or query:

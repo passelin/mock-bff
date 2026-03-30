@@ -60,6 +60,15 @@ function maybeJson(text?: string): unknown {
   }
 }
 
+function maybeParseBody(text?: string): unknown {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
 function globToRegExp(glob: string): RegExp {
   const escaped = glob.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
   return new RegExp(`^${escaped}$`, "i");
@@ -124,7 +133,7 @@ export function parseHar(
     const queryObj = normalizeQuery(rawQuery, config.ignoredQueryParams);
 
     const reqBody = redactJsonValue(maybeJson(e.request.postData?.text), config.redactBodyKeys);
-    const resBody = redactJsonValue(maybeJson(e.response.content?.text), config.redactBodyKeys);
+    const resBody = redactJsonValue(maybeParseBody(e.response.content?.text), config.redactBodyKeys);
     const resHeaders = redactHeaders(toHeaderMap(e.response.headers), config.redactHeaders);
 
     const variant = buildVariantName(queryObj, reqBody);

@@ -37,8 +37,8 @@ Timestamp: {{datetime_iso}}
 Method: {{method}}
 Path: {{path}}
 Query params: {{query_json}}
-Body: {{body_json}}
-Headers: {{headers_json}}`;
+Request Body: {{body_json}}
+Request Headers: {{headers_json}}`;
 
 export function App() {
   const data = useAdminData(DEFAULT_PROMPT_TEMPLATE);
@@ -107,7 +107,9 @@ export function App() {
   const [selectedMethod, setSelectedMethod] = useState("");
   const [selectedPath, setSelectedPath] = useState("");
   const [variantList, setVariantList] = useState<VariantMeta[]>([]);
-  const [forcedVariantId, setForcedVariantId] = useState<string | undefined>(undefined);
+  const [forcedVariantId, setForcedVariantId] = useState<string | undefined>(
+    undefined,
+  );
   const [fuzzyDisabled, setFuzzyDisabled] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const [variantEditor, setVariantEditor] = useState("");
@@ -416,7 +418,7 @@ export function App() {
       const data = await res.json().catch(() => ({}));
       const savedId = data.id ?? selectedVariantId;
       await loadVariants(selectedMethod, selectedPath);
-      setSelectedVariantId(savedId);
+      await selectVariant(savedId);
       await loadEndpoints();
       showToast("Variant saved");
     } catch {
@@ -433,11 +435,18 @@ export function App() {
       const res = await fetch("/-/api/endpoint/fuzzy", {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ method: selectedMethod, path: selectedPath, disabled: !fuzzyDisabled }),
+        body: JSON.stringify({
+          method: selectedMethod,
+          path: selectedPath,
+          disabled: !fuzzyDisabled,
+        }),
       });
       if (!res.ok) throw new Error("toggle failed");
       const next = !fuzzyDisabled;
-      await Promise.all([loadEndpoints(), loadVariants(selectedMethod, selectedPath)]);
+      await Promise.all([
+        loadEndpoints(),
+        loadVariants(selectedMethod, selectedPath),
+      ]);
       showToast(next ? "Fuzzy matching disabled" : "Fuzzy matching enabled");
     } catch {
       showToast("Failed to toggle fuzzy matching");
@@ -453,7 +462,11 @@ export function App() {
       const res = await fetch("/-/api/variant/force", {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ method: selectedMethod, path: selectedPath, id }),
+        body: JSON.stringify({
+          method: selectedMethod,
+          path: selectedPath,
+          id,
+        }),
       });
       if (!res.ok) throw new Error("force failed");
       setForcedVariantId(id ?? undefined);

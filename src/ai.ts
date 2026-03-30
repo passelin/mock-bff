@@ -93,14 +93,16 @@ Output requirements:
 3. The response must always be a successful HTTP response (2xx only).
 
 Content negotiation:
-1. Inspect the \`Accept\` header to determine the response format.
+1. **Examples override everything else**: If similar examples are provided and they all share the same \`Content-Type\`, use that content type for this response. This takes priority over the \`Accept\` header and all rules below. For example, if every example shows \`Content-Type: text/event-stream\`, return a \`text/event-stream\` response.
 
-2. Default behavior (critical):
+2. Inspect the \`Accept\` header to determine the response format (only when no consistent example content-type is available).
+
+3. Default behavior (critical):
  - If the \`Accept\` header resembles a typical browser request (e.g. includes multiple types like \`text/html\`, \`application/xhtml+xml\`, \`application/xml\`, \`image/*\`, \`*/*\`), treat it as NO explicit preference.
  - In these cases, ALWAYS return \`application/json\`.
  - If \`*/*\` is present, treat it as no preference and return JSON.
 
-3. Explicit format selection:
+4. Explicit format selection:
  - Only return a non-JSON format (e.g. \`text/html\`) if:
  - The \`Accept\` header specifies a single clear mime type, OR
  - One mime type has a strictly higher q-value than all others and is not a wildcard.
@@ -108,14 +110,14 @@ Content negotiation:
  - \`Accept: text/html\`
  - \`Accept: text/html;q=1.0, application/json;q=0.5\`
 
-4. Ambiguous or browser-style headers:
+5. Ambiguous or browser-style headers:
  - If multiple types are listed without a clear single winner (even if ordered), IGNORE ordering and return JSON.
 
-5. If the requested type is unsupported or unclear, default to \`application/json\`.
+6. If the requested type is unsupported or unclear, default to \`application/json\`.
 
-6. For non-JSON responses (only when explicitly required), return a realistic representation (e.g. full HTML document as a string).
+7. For non-JSON responses, return a realistic representation as a string in the \`body\` field (e.g. full HTML document, SSE event stream as \`data: ...\n\n\` lines).
 
-7. Always set the \`Content-Type\` header accordingly.
+8. Always set the \`Content-Type\` header accordingly.
 
 Response behavior:
 1. Follow standard REST conventions:
@@ -142,14 +144,15 @@ Data modeling rules:
 3. Populate optional fields only when realistic.
 4. Keep generated values internally consistent.
 5. IDs should be unique numbers (random).
-6. Output VALID JSON ONLY. Do not add ellipsis or other non valid output.`;
+6. When \`body\` is a JSON value, it must be strictly valid JSON. Never abbreviate arrays or objects with ellipsis (\`...\`), comments, or any other non-JSON token — always emit the full value.
+7. When \`body\` is a string (e.g. SSE stream, HTML), write the raw content as-is.`;
 
 export const DEFAULT_PROMPT_TEMPLATE = `ADDITIONAL CONTEXT:
 {{context}}
 
 SIMILAR EXAMPLES:
 {{similar_examples_json}}
-
+{{response_format_hint}}
 THE REQUEST:
 Timestamp: {{datetime_iso}}
 Method: {{method}}
@@ -158,11 +161,92 @@ Query params: {{query_json}}
 Body: {{body_json}}
 Headers: {{headers_json}}`;
 
+function isBinaryContentType(contentType: string | undefined): boolean {
+  if (!contentType) return false;
+  const ct = contentType.split(";")[0].trim().toLowerCase();
+  return (
+    ct.startsWith("image/") ||
+    ct.startsWith("audio/") ||
+    ct.startsWith("video/") ||
+    ct.startsWith("font/") ||
+    ct === "application/octet-stream" ||
+    ct === "application/pdf"
+  );
+}
+
+function formatNearbyExamples(
+  examples: AiGenerateInput["nearbyExamples"],
+): string {
+  return examples
+    .slice(0, 6)
+    .map((ex, i) => {
+      const header = [
+        `### Example ${i + 1}${ex.label ? `: ${ex.label}` : ""}`,
+        `${ex.method} ${ex.path}`,
+        `Content-Type: ${ex.contentType ?? "unknown"}`,
+      ].join("\n");
+
+      const ct = ex.contentType?.split(";")[0].trim().toLowerCase() ?? "";
+
+      if (isBinaryContentType(ct)) {
+        let encoded: string;
+        if (typeof ex.responseBody === "string") {
+          encoded = Buffer.from(ex.responseBody, "binary").toString("base64");
+        } else if (ex.responseBody instanceof Buffer) {
+          encoded = (ex.responseBody as Buffer).toString("base64");
+        } else {
+          encoded = Buffer.from(JSON.stringify(ex.responseBody)).toString("base64");
+        }
+        return `${header}\n\n\`\`\`\n[binary base64: ${ct}]\n${encoded}\n\`\`\``;
+      }
+
+      const isEmpty =
+        ex.responseBody === null ||
+        ex.responseBody === undefined ||
+        (typeof ex.responseBody === "object" &&
+          !Array.isArray(ex.responseBody) &&
+          Object.keys(ex.responseBody as object).length === 0);
+
+      if (isEmpty) return `${header}\n\n[no body captured]`;
+
+      const lang = ct.includes("json") ? "json" : "";
+      const MAX = 4000;
+      const raw =
+        typeof ex.responseBody === "string"
+          ? ex.responseBody
+          : JSON.stringify(ex.responseBody, null, 2);
+      const body = raw.length > MAX ? `${raw.slice(0, MAX)}\n… [truncated]` : raw;
+
+      return `${header}\n\n\`\`\`${lang}\n${body}\n\`\`\``;
+    })
+    .join("\n\n");
+}
+
+function inferContentTypeFromExamples(
+  examples: AiGenerateInput["nearbyExamples"],
+): string | undefined {
+  // Only use same-endpoint examples to infer content-type, not similar-path ones
+  const sameEndpoint = examples.filter((e) => e.label?.startsWith("same-endpoint:"));
+  if (sameEndpoint.length === 0) return undefined;
+  const types = sameEndpoint
+    .map((e) => e.contentType?.split(";")[0].trim().toLowerCase())
+    .filter((ct): ct is string => Boolean(ct));
+  if (types.length === 0) return undefined;
+  const dominant = types[0];
+  if (types.every((ct) => ct === dominant)) return dominant;
+  return undefined;
+}
+
 function renderPromptTemplate(
   template: string,
   input: AiGenerateInput,
   now: Date,
 ): string {
+  const inferredCt = inferContentTypeFromExamples(input.nearbyExamples);
+  const responseFormatHint = inferredCt
+    ? `\nREQUIRED: You MUST set contentType to "${inferredCt}" and format the body accordingly. All existing examples for this endpoint use this content-type. Ignore the Accept header.\n`
+    : "";
+
   const map: Record<string, string> = {
     datetime_iso: now.toISOString(),
     date: now.toISOString().slice(0, 10),
@@ -172,7 +256,8 @@ function renderPromptTemplate(
     body_json: JSON.stringify(input.body),
     headers_json: JSON.stringify(input.requestHeaders ?? {}),
     context: input.context.slice(-4000),
-    similar_examples_json: JSON.stringify(input.nearbyExamples.slice(0, 6)),
+    similar_examples_json: formatNearbyExamples(input.nearbyExamples),
+    response_format_hint: responseFormatHint,
   };
 
   return template.replace(

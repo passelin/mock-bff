@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.6.0] - 2026-03-30
+
+### Added
+- Variant editor search/replace bar (toggle with replace icon in editor header)
+- Variant list shows last-modified date (file mtime) per row
+
+### Fixed
+- Saving a variant no longer blanks the editor — content is reloaded after save
+- CORS preflight now returns correct `Access-Control-Allow-Methods` so PUT/PATCH requests from cross-origin frontends are no longer blocked
+- AI content-type inference now scoped to same-endpoint examples only, preventing bleed-over from similar-path examples
+- HAR importer stores `null` instead of `{}` for missing response bodies (e.g. SSE streams not captured in HAR)
+- AI prompt injects an explicit `REQUIRED: contentType` directive when all same-endpoint examples share the same content-type, helping weaker models honour non-JSON responses
+- `nearbyExamples` formatted as markdown with fenced code blocks; binary bodies base64-encoded; empty bodies shown as `[no body captured]`; oversized bodies truncated at 4000 chars rather than dropped
+
+### Changed
+- Server logs every request (`mock-bff-request`) and response (`mock-bff-response`) to stderr
+
 ## [0.5.2] - 2026-03-29
 
 ### Changed

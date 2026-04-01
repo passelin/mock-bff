@@ -6,6 +6,7 @@ import {
   Logs,
   Menu,
   Plus,
+  Radio,
   Route as RouteIcon,
   Settings,
   X,
@@ -96,6 +97,12 @@ export function App() {
     getAiStorePrompt,
     saveConfig,
     saveContext,
+    proxyEnabled,
+    setProxyEnabled,
+    proxyTargetUrl,
+    setProxyTargetUrl,
+    saveProxyConfig,
+    toggleProxy,
     loadConfig,
     loadContext,
     openApiDoc,
@@ -583,6 +590,22 @@ export function App() {
               </div>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+          {proxyTargetUrl && (
+            <button
+              onClick={() => toggleProxy(!proxyEnabled)}
+              disabled={busy}
+              title={proxyEnabled ? "Stop recording" : "Start recording"}
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+                proxyEnabled
+                  ? "bg-rose-600 text-white hover:bg-rose-700"
+                  : "border border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+              }`}
+            >
+              <Radio className={`h-3.5 w-3.5 ${proxyEnabled ? "animate-pulse" : ""}`} />
+              <span className="hidden sm:inline">{proxyEnabled ? "Recording" : "Record"}</span>
+            </button>
+          )}
           <button
             className="lg:hidden rounded-lg border border-zinc-700 p-2"
             onClick={() => setMobileMenuOpen((v) => !v)}
@@ -622,6 +645,7 @@ export function App() {
               icon={<Settings className="h-4 w-4" />}
             />
           </nav>
+          </div>
         </div>
       </header>
 
@@ -818,6 +842,11 @@ export function App() {
                 context={context}
                 setContext={setContext}
                 saveContext={saveContext}
+                proxyEnabled={proxyEnabled}
+                setProxyEnabled={setProxyEnabled}
+                proxyTargetUrl={proxyTargetUrl}
+                setProxyTargetUrl={setProxyTargetUrl}
+                saveProxyConfig={saveProxyConfig}
               />
             }
           />

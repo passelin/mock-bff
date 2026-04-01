@@ -24,8 +24,13 @@ export interface AppConfig {
     pathDenylist: string[];
     ignorePatterns: string[];
     excludeExtensions: string[];
+    excludeMimeTypes: string[];
   };
   aiPromptTemplate?: string;
+  proxy?: {
+    enabled: boolean;
+    targetUrl: string;
+  };
 }
 
 export interface RequestSignature {
@@ -71,7 +76,7 @@ export interface RequestLogEntry {
   method: string;
   path: string;
   query: Record<string, string | string[]>;
-  match: "exact" | "fuzzy" | "default" | "generated" | "generated-invalid" | "none";
+  match: "exact" | "fuzzy" | "default" | "generated" | "generated-invalid" | "proxied" | "none";
   status: number;
   prompt?: string;
   aiError?: string;

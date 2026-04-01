@@ -32,6 +32,8 @@ export function useAdminData(defaultPromptTemplate: string) {
     format?: string;
     raw?: string;
   }>({ exists: false });
+  const [proxyEnabled, setProxyEnabled] = useState(false);
+  const [proxyTargetUrl, setProxyTargetUrl] = useState("");
 
   function showToast(msg: string) {
     setToast(msg);
@@ -73,6 +75,8 @@ export function useAdminData(defaultPromptTemplate: string) {
       cfg.providerBaseUrls?.anthropic ?? "https://api.anthropic.com",
     );
     setOllamaBaseUrl(cfg.providerBaseUrls?.ollama ?? "http://127.0.0.1:11434");
+    setProxyEnabled(cfg.proxy?.enabled ?? false);
+    setProxyTargetUrl(cfg.proxy?.targetUrl ?? "");
   }
   async function loadHealth() {
     const data = await (await fetch("/-/api/health")).json();
@@ -242,6 +246,44 @@ export function useAdminData(defaultPromptTemplate: string) {
     }
   }
 
+  async function toggleProxy(enabled: boolean) {
+    setProxyEnabled(enabled);
+    setBusy(true);
+    try {
+      await fetch("/-/api/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          proxy: { enabled, targetUrl: proxyTargetUrl },
+        }),
+      });
+    } catch {
+      // best-effort
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveProxyConfig() {
+    setBusy(true);
+    try {
+      await fetch("/-/api/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          proxy: { enabled: proxyEnabled, targetUrl: proxyTargetUrl },
+        }),
+      });
+      showToast(
+        proxyEnabled ? "Proxy mode enabled" : "Proxy mode disabled",
+      );
+    } catch {
+      showToast("Failed to save proxy config");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveContext() {
     setBusy(true);
     try {
@@ -317,5 +359,11 @@ export function useAdminData(defaultPromptTemplate: string) {
     getAiStorePrompt,
     saveConfig,
     saveContext,
+    proxyEnabled,
+    setProxyEnabled,
+    proxyTargetUrl,
+    setProxyTargetUrl,
+    saveProxyConfig,
+    toggleProxy,
   };
 }

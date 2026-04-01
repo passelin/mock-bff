@@ -55,7 +55,16 @@ export function LogsPage(props: {
                     </td>
                     <td className="px-3 py-2 font-mono text-brand-300">{r.method}</td>
                     <td className="px-3 py-2 font-mono break-all">{r.path}</td>
-                    <td className="px-3 py-2">{r.match}</td>
+                    <td className="px-3 py-2">
+                      {r.match === "proxied" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-950/60 px-2 py-0.5 text-[11px] font-medium text-rose-300 ring-1 ring-rose-700/50">
+                          <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
+                          proxied
+                        </span>
+                      ) : (
+                        r.match
+                      )}
+                    </td>
                     <td className="px-3 py-2">{r.status}</td>
                     <td className="px-3 py-2">
                       {r.aiError ? (

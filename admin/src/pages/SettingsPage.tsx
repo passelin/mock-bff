@@ -34,6 +34,11 @@ export function SettingsPage(props: {
   context: string;
   setContext: (v: string) => void;
   saveContext: () => void;
+  proxyEnabled: boolean;
+  setProxyEnabled: (v: boolean) => void;
+  proxyTargetUrl: string;
+  setProxyTargetUrl: (v: string) => void;
+  saveProxyConfig: () => void;
 }) {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -166,6 +171,50 @@ export function SettingsPage(props: {
       </Card>
       <Card title="Context" subtitle="Continuously updated generation context." actions={<button onClick={props.saveContext} disabled={props.busy} className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium disabled:opacity-50">Save context</button>}>
         <textarea value={props.context} onChange={(e) => props.setContext(e.target.value)} className="h-80 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 font-mono text-xs" />
+      </Card>
+      <Card
+        title="Proxy / Record"
+        subtitle="Forward requests to an upstream server and record matching responses."
+        actions={
+          <button
+            onClick={props.saveProxyConfig}
+            disabled={props.busy}
+            className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50"
+          >
+            Save
+          </button>
+        }
+      >
+        {props.proxyEnabled && (
+          <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-700 bg-amber-950/40 px-3 py-2 text-xs text-amber-300">
+            <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+            Proxy mode is active — incoming requests are being forwarded and recorded.
+          </div>
+        )}
+        <label className="mb-4 flex items-center gap-2 text-xs text-zinc-300">
+          <input
+            type="checkbox"
+            checked={props.proxyEnabled}
+            onChange={(e) => props.setProxyEnabled(e.target.checked)}
+          />
+          Enable proxy / record mode
+        </label>
+        <label className="text-xs text-zinc-400">
+          Target URL
+          <input
+            type="url"
+            value={props.proxyTargetUrl}
+            onChange={(e) => props.setProxyTargetUrl(e.target.value)}
+            placeholder="https://example.com/myapp"
+            className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs"
+          />
+        </label>
+        <p className="mt-2 text-[11px] text-zinc-500">
+          All requests are forwarded to the target. API-like requests are recorded to storage using the same filters as HAR upload. The target's path prefix is stripped from recorded paths — e.g. a target of <code>https://example.com/myapp</code> records <code>/api/users</code>, not <code>/myapp/api/users</code>.
+        </p>
+        <p className="mt-1 text-[11px] text-zinc-500">
+          When proxy mode is off, the server resumes normal mock-matching and AI generation.
+        </p>
       </Card>
     </div>
   );

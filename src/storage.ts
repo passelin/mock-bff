@@ -38,6 +38,7 @@ const DEFAULT_CONFIG: AppConfig = {
     pathAllowlist: [],
     pathDenylist: [],
     ignorePatterns: [],
+    excludeMimeTypes: ["text/html"],
     excludeExtensions: [
       ".js",
       ".css",
@@ -55,6 +56,10 @@ const DEFAULT_CONFIG: AppConfig = {
       ".eot",
       ".pdf",
     ],
+  },
+  proxy: {
+    enabled: false,
+    targetUrl: "",
   },
 };
 

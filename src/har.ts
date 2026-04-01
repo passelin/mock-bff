@@ -92,6 +92,8 @@ export function isApiLikeRequest(args: {
 
   if (args.config.har.excludeExtensions.some((ext) => pathname.endsWith(ext.toLowerCase()))) return false;
 
+  if (mime && (args.config.har.excludeMimeTypes ?? []).some((t) => mime.includes(t.toLowerCase()))) return false;
+
   if (args.config.har.pathAllowlist.length > 0 && !args.config.har.pathAllowlist.some((p) => pathname.includes(p.toLowerCase()))) {
     return false;
   }

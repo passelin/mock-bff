@@ -945,6 +945,151 @@ export async function createApp(options: CreateAppOptions) {
       }
       const config = await storage.readConfig();
 
+      // Proxy / Record mode: forward all requests to the upstream target and
+      // record API-like responses to storage. Bypasses mock matching and AI.
+      if (config.proxy?.enabled && config.proxy.targetUrl) {
+        const targetParsed = new URL(config.proxy.targetUrl);
+        const pathPrefix = targetParsed.pathname.replace(/\/$/, "");
+        const upstreamUrl = targetParsed.origin + pathPrefix + req.raw.url;
+
+        const forwardHeaders: Record<string, string> = {};
+        for (const [k, v] of Object.entries(req.headers)) {
+          if (typeof v === "string") forwardHeaders[k] = v;
+        }
+        delete forwardHeaders["host"];
+        delete forwardHeaders["connection"];
+        delete forwardHeaders["transfer-encoding"];
+        forwardHeaders["host"] = targetParsed.host;
+
+        let upstreamRes: Response;
+        try {
+          const hasBody = !["GET", "HEAD"].includes(method);
+          const bodyToSend =
+            hasBody && req.body != null ? JSON.stringify(req.body) : undefined;
+          upstreamRes = await fetch(upstreamUrl, {
+            method,
+            headers: forwardHeaders,
+            body: bodyToSend,
+            redirect: "follow",
+          });
+        } catch {
+          return reply.code(502).send({ error: "Proxy upstream unreachable" });
+        }
+
+        const upstreamBuffer = Buffer.from(await upstreamRes.arrayBuffer());
+        const upstreamContentType =
+          upstreamRes.headers.get("content-type") ?? "";
+
+        const shouldRecord = isApiLikeRequest({
+          method,
+          pathname: fullPath,
+          config,
+          responseMimeType: upstreamContentType,
+        });
+
+        if (shouldRecord) {
+          const rawText = upstreamBuffer.toString("utf8");
+          let responseBody: unknown = null;
+          if (rawText) {
+            try {
+              responseBody = JSON.parse(rawText);
+            } catch {
+              responseBody = rawText;
+            }
+          }
+
+          const responseHeaders: Record<string, string> = {};
+          upstreamRes.headers.forEach((v, k) => {
+            responseHeaders[k] = v;
+          });
+          for (const h of [
+            "content-encoding",
+            "content-length",
+            "transfer-encoding",
+            "connection",
+            "access-control-allow-origin",
+            "access-control-allow-methods",
+            "access-control-allow-headers",
+            "vary",
+          ]) {
+            delete responseHeaders[h];
+          }
+
+          const query = normalizeQuery(
+            (req.query as Record<string, string | string[]>) ?? {},
+            config.ignoredQueryParams,
+          );
+          const variantName = buildVariantName(query, req.body ?? null);
+          const [qPart, bPart] = variantName.split("__");
+          const queryHash = qPart.replace("q_", "");
+          const bodyHash = (bPart ?? "b_empty").replace("b_", "");
+
+          const mock: StoredMock = {
+            requestSignature: { method, path: fullPath, queryHash, bodyHash },
+            requestSnapshot: { query, body: req.body ?? null },
+            response: {
+              status: upstreamRes.status,
+              headers: responseHeaders,
+              body: responseBody,
+            },
+            meta: { source: "har", createdAt: new Date().toISOString() },
+          };
+
+          try {
+            const savedPath = await storage.saveVariant(
+              method,
+              fullPath,
+              variantName,
+              mock,
+            );
+            const index = await storage.readIndex();
+            await storage.writeIndex(
+              upsertIndex(index, method, fullPath, savedPath),
+            );
+            emitLiveEvent("variants-updated", {
+              action: "variant-recorded",
+              method,
+              path: fullPath,
+              id: variantName,
+            });
+            emitLiveEvent("endpoints-updated", {
+              action: "variant-recorded",
+              method,
+              path: fullPath,
+            });
+          } catch {
+            // non-fatal: still return the proxied response
+          }
+        }
+
+        pushRequestLog({
+          at: new Date().toISOString(),
+          method,
+          path: fullPath,
+          query: (req.query as Record<string, string | string[]>) ?? {},
+          match: "proxied",
+          status: upstreamRes.status,
+        });
+
+        const resHeaders: Record<string, string> = {};
+        upstreamRes.headers.forEach((v, k) => {
+          resHeaders[k] = v;
+        });
+        for (const h of [
+          "content-encoding",
+          "content-length",
+          "transfer-encoding",
+          "connection",
+        ]) {
+          delete resHeaders[h];
+        }
+
+        return reply
+          .code(upstreamRes.status)
+          .headers(resHeaders)
+          .send(upstreamBuffer);
+      }
+
       if (
         !isApiLikeRequest({
           method,
@@ -1124,6 +1269,8 @@ export async function createApp(options: CreateAppOptions) {
         ? buildPrompt(aiInput, config, new Date())
         : undefined;
 
+      const aiProvider = process.env.MOCK_AI_PROVIDER ?? config.aiProvider ?? "openai";
+      const aiModel = process.env.MOCK_AI_MODEL ?? config.aiModel ?? "";
       const result = await generateMockResponse(aiInput, config);
 
       if (!result.ok) {
@@ -1224,6 +1371,7 @@ export async function createApp(options: CreateAppOptions) {
 
       return reply
         .header("x-mock-match", "generated")
+        .header("x-mock-ai-model", `${aiProvider}:${aiModel}`)
         .code(generated.response.status)
         .headers(sanitizeReplayHeaders(generated.response.headers))
         .send(generated.response.body);

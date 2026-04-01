@@ -16,12 +16,31 @@ Admin UI:
 
 ## 2) Import data
 
+You have two options for populating mocks:
+
+### Option A — HAR upload
+
 In Dashboard:
 
 1. Upload a HAR file
 2. Optionally upload an OpenAPI file
 
 The server imports API-like calls and stores variants under `mocks/`.
+
+### Option B — Proxy / record mode
+
+Skip the HAR export entirely and capture live traffic directly:
+
+1. Open Admin → **Settings** → **Proxy / Record** card
+2. Enter the **Target URL** of the real upstream server, including any path prefix (e.g. `https://api.example.com/myapp`)
+3. Click **Save**
+4. Click the **Record** button in the top bar — it turns red and pulses while active
+5. Use your frontend normally — every API-like response is saved as a variant in real time
+6. Click **Recording** to stop; the server resumes normal mock-matching and AI generation
+
+**Path prefix stripping:** the target's path prefix is removed from recorded paths. With target `https://api.example.com/myapp`, a request arriving at `/api/users` is forwarded to `https://api.example.com/myapp/api/users` but stored as `/api/users` — matching how your frontend calls mock-bff directly.
+
+The **Record** button only appears in the top bar when a target URL is configured. Requests proxied in record mode appear in the **Logs** route with a red `proxied` badge.
 
 ## 3) Point your frontend to mock-bff
 
@@ -122,7 +141,11 @@ mock-bff --provider none
 - `aiStorePrompt`: store prompt with generated variants (default false)
 - `openApiMode`: `off | assist | strict`
 - `har.*`: import/runtime filtering controls
-  - includes `har.ignorePatterns` (e.g. `/.well-known/*`)
+  - `har.ignorePatterns`: glob-like path patterns to exclude (e.g. `/.well-known/*`)
+  - `har.excludeMimeTypes`: response content-types to skip (default: `["text/html"]`)
+  - `har.excludeExtensions`, `har.pathAllowlist`, `har.pathDenylist`, `har.onlyApiCalls`
+- `proxy.enabled`: toggle proxy / record mode on or off
+- `proxy.targetUrl`: upstream URL to proxy to (enables the **Record** button in the top bar)
 - `aiPromptTemplate`: optional template editable in Admin Settings
 
 ## 8) Troubleshooting
@@ -130,4 +153,5 @@ mock-bff --provider none
 - 404 for `/favicon.ico` and other assets is expected (non-API requests are rejected)
 - If endpoint exists but app misses, verify request method/path/query/body signature
 - If browser downloads unexpectedly, ensure stale transport headers are not persisted (handled by current ingest/replay sanitization)
-  persisted (handled by current ingest/replay sanitization)
+- **Proxy returns 502**: the upstream URL is unreachable — check the target URL and network connectivity
+- **Proxy records nothing**: the upstream responses may be filtered out by `har.excludeMimeTypes`, `har.excludeExtensions`, or `har.requireJsonResponse` — check the filters in Settings and watch the Logs route for `proxied` entries

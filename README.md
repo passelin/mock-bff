@@ -9,6 +9,7 @@ Feed it a HAR recording or an OpenAPI contract, and it replays stored mocks. For
 ## Features
 
 - Replay HTTP API responses from HAR recordings
+- **Proxy / record mode** — forward live traffic to an upstream and record API responses on the fly
 - Filesystem-based mock storage (commit-friendly)
 - Admin UI at `/-/admin` for managing endpoints and variants
 - OpenAPI validation (assist and strict modes)
@@ -131,12 +132,29 @@ mocks/
         └── q_abc123__b_def456.json
 ```
 
+## Proxy / record mode
+
+Point mock-bff at a real upstream server to capture live traffic directly into mock storage, without exporting a HAR file from the browser.
+
+1. Open Admin → **Settings** → **Proxy / Record** card
+2. Enter the **Target URL** (e.g. `https://api.example.com/myapp`)
+3. Click **Save**, then click **Record** in the top bar (or toggle *Enable proxy / record mode*)
+4. Use your frontend normally — every API-like response is saved as a variant
+5. Click **Recording** in the top bar to stop; mock-bff resumes normal mock-matching
+
+**Path prefix stripping:** the target's path is removed from recorded paths. With target `https://api.example.com/myapp`, a request to `/api/users` is forwarded to `https://api.example.com/myapp/api/users` but recorded as `/api/users`.
+
+The same HAR import filters apply — extensions, mime type deny list, path allow/deny lists, etc. Non-API traffic (e.g. HTML pages, images) is proxied but not recorded.
+
 ## Config highlights
 
 Configuration is managed via the Admin UI Settings page or by editing `mocks/_meta/app.config.json` directly.
 
-- `har.ignorePatterns`: glob-like path patterns to skip during HAR import (e.g. `/.well-known/*`)
+- `har.ignorePatterns`: glob-like path patterns to skip during HAR import and proxy recording (e.g. `/.well-known/*`)
 - `har.onlyApiCalls`: skip non-API requests (assets, fonts, etc.) during import
+- `har.excludeMimeTypes`: response content-types to skip (default: `["text/html"]`)
+- `proxy.enabled`: activate proxy / record mode
+- `proxy.targetUrl`: upstream URL to forward requests to
 - `openApiMode`: `off` | `assist` | `strict` — controls OpenAPI validation behavior
 - `aiPromptTemplate`: customize the AI generation prompt using placeholders:
   - `{{method}}`, `{{path}}`, `{{query_json}}`, `{{body_json}}`, `{{headers_json}}`

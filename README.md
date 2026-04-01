@@ -4,7 +4,7 @@
 
 Mock BFF server for UI development. Run frontend apps against realistic HTTP API responses without standing up backend environments.
 
-Feed it a HAR recording or an OpenAPI contract, and it replays stored mocks. For requests with no match, it can generate a realistic response using an AI provider.
+Feed it a HAR recording, point it at a live upstream to record traffic in proxy mode, or upload an OpenAPI contract — it replays stored mocks and can generate realistic fallback responses using an AI provider.
 
 ## Features
 

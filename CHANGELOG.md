@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.7.0] - 2026-04-01
 
 ### Changed
 - Settings page redesigned: structured form with grouped sections (General, AI Generation, Proxy/Record, Context, Advanced), Form/Raw toggle, single Save button enabled only when there are unsaved changes, and `beforeunload` guard against accidental navigation

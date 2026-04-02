@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Endpoint, ProviderInfo, ReqLog } from "../types";
+import type { AppConfig, Endpoint, ProviderInfo, ReqLog } from "../types";
 
 export function useAdminData(defaultPromptTemplate: string) {
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [requests, setRequests] = useState<ReqLog[]>([]);
   const [misses, setMisses] = useState<any[]>([]);
   const [serverVersion, setServerVersion] = useState("unknown");
+  const [config, setConfig] = useState<AppConfig | null>(null);
   const [configText, setConfigText] = useState("");
   const [promptTemplate, setPromptTemplate] = useState(defaultPromptTemplate);
   const [showPromptHints, setShowPromptHints] = useState(false);
@@ -58,6 +59,7 @@ export function useAdminData(defaultPromptTemplate: string) {
   }
   async function loadConfig() {
     const cfg = await (await fetch("/-/api/config")).json();
+    setConfig(cfg);
     setConfigText(JSON.stringify(cfg, null, 2));
     setPromptTemplate(
       cfg.aiPromptTemplate && String(cfg.aiPromptTemplate).trim()
@@ -208,6 +210,30 @@ export function useAdminData(defaultPromptTemplate: string) {
     }
   }
 
+  async function saveFullConfig(cfg: AppConfig, ctx: string): Promise<void> {
+    setBusy(true);
+    try {
+      await fetch("/-/api/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(cfg),
+      });
+      await fetch("/-/api/context", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ context: ctx }),
+      });
+      setConfig(cfg);
+      setConfigText(JSON.stringify(cfg, null, 2));
+      setContext(ctx);
+      showToast("Settings saved");
+    } catch {
+      showToast("Failed to save settings");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveConfig() {
     setBusy(true);
     try {
@@ -305,6 +331,7 @@ export function useAdminData(defaultPromptTemplate: string) {
     requests,
     misses,
     serverVersion,
+    config,
     configText,
     setConfigText,
     promptTemplate,
@@ -358,6 +385,7 @@ export function useAdminData(defaultPromptTemplate: string) {
     setAiStorePrompt,
     getAiStorePrompt,
     saveConfig,
+    saveFullConfig,
     saveContext,
     proxyEnabled,
     setProxyEnabled,

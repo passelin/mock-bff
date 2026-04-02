@@ -1,5 +1,6 @@
 import { Upload } from "lucide-react";
 import { Card } from "./Card";
+import { FileDropZone } from "./FileDropZone";
 
 export function HarUploadCard(props: {
   busy: boolean;
@@ -8,27 +9,21 @@ export function HarUploadCard(props: {
   uploadFile: (route: string, file: File | null, successMsg: string) => void;
 }) {
   return (
-    <Card
-      title="Import HAR"
-      subtitle="Upload real traffic captures to generate endpoint variants."
-      tone="highlight"
-      actions={
-        <button
-          disabled={props.busy || !props.harFile}
-          onClick={() => props.uploadFile("/-/api/har", props.harFile, "HAR imported")}
-          className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-50 inline-flex items-center gap-2"
-        >
-          <Upload className="h-4 w-4" />
-          Upload HAR
-        </button>
-      }
-    >
-      <input
-        type="file"
+    <Card title="Import HAR" subtitle="Upload real traffic captures to generate endpoint variants.">
+      <FileDropZone
+        file={props.harFile}
+        onFile={props.setHarFile}
         accept=".har,.json"
-        onChange={(e) => props.setHarFile(e.target.files?.[0] ?? null)}
-        className="block w-full text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-brand-600 file:px-4 file:py-2 file:text-white hover:file:bg-brand-500"
+        label="Click or drag a .har file here"
       />
+      <button
+        disabled={props.busy || !props.harFile}
+        onClick={() => props.uploadFile("/-/api/har", props.harFile, "HAR imported")}
+        className="mt-3 w-full rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium disabled:opacity-40 inline-flex items-center justify-center gap-2"
+      >
+        <Upload className="h-4 w-4" />
+        Upload HAR
+      </button>
     </Card>
   );
 }

@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   FileJson,
-  Gauge,
   ListTree,
-  Logs,
   Menu,
   Plus,
   Radio,
@@ -11,14 +9,13 @@ import {
   Settings,
   X,
 } from "lucide-react";
-import { Route, Routes, useLocation } from "react-router-dom";
+import { Link, Route, Routes, useLocation } from "react-router-dom";
 import { Card } from "./components/Card";
 import { Tab } from "./components/Tab";
 import { PromptDialog } from "./components/PromptDialog";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { CreateVariantDialog } from "./components/CreateVariantDialog";
 import { EndpointsPage } from "./pages/EndpointsPage";
-import { LogsPage } from "./pages/LogsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { VariantsPage } from "./pages/VariantsPage";
@@ -47,30 +44,10 @@ export function App() {
     endpoints,
     requests,
     misses,
-    configText,
-    setConfigText,
-    promptTemplate,
-    setPromptTemplate,
-    showPromptHints,
-    setShowPromptHints,
+    config,
     providerInfo,
-    providerName,
     serverVersion,
-    setProviderName,
-    providerModel,
-    setProviderModel,
-    aiSeed,
-    setAiSeed,
-    aiTemperature,
-    setAiTemperature,
-    openaiBaseUrl,
-    setOpenaiBaseUrl,
-    anthropicBaseUrl,
-    setAnthropicBaseUrl,
-    ollamaBaseUrl,
-    setOllamaBaseUrl,
     context,
-    setContext,
     toast,
     showToast,
     busy,
@@ -82,7 +59,6 @@ export function App() {
     openApiFile,
     setOpenApiFile,
     stats,
-    configError,
     refresh,
     loadEndpoints,
     loadRequests,
@@ -93,15 +69,9 @@ export function App() {
     refreshOllamaModels,
     uploadFile,
     deleteOpenApiDoc: deleteOpenApiDocRaw,
-    setAiStorePrompt,
-    getAiStorePrompt,
-    saveConfig,
-    saveContext,
+    saveFullConfig,
     proxyEnabled,
-    setProxyEnabled,
     proxyTargetUrl,
-    setProxyTargetUrl,
-    saveProxyConfig,
     toggleProxy,
     loadConfig,
     loadContext,
@@ -182,10 +152,6 @@ export function App() {
       }
       return;
     }
-    if (path === "/logs") {
-      Promise.all([loadRequests(), loadMisses()]);
-      return;
-    }
     if (path === "/openapi") {
       loadOpenApiDoc();
       return;
@@ -203,7 +169,7 @@ export function App() {
     es.onerror = () => setLiveConnected(false);
     es.addEventListener("ready", () => setLiveConnected(true));
 
-    if (path === "/logs") {
+    if (path === "/") {
       const refreshLogs = () => {
         loadRequests();
         loadMisses();
@@ -564,7 +530,7 @@ export function App() {
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
       <header className="sticky top-0 z-30 border-b border-zinc-800/80 bg-zinc-950/95 backdrop-blur">
         <div className="mx-auto max-w-7xl px-4 lg:px-8 h-16 flex items-center justify-between">
-          <div className="inline-flex items-center gap-3">
+          <Link to="/" className="inline-flex items-center gap-3 hover:opacity-80 transition-opacity">
             <img
               src={bffCandyHeartLogo}
               alt="Mock BFF logo"
@@ -589,7 +555,7 @@ export function App() {
                 </span>
               </div>
             </div>
-          </div>
+          </Link>
           <div className="flex items-center gap-2">
           {proxyTargetUrl && (
             <button
@@ -619,11 +585,6 @@ export function App() {
           </button>
           <nav className="hidden lg:flex items-center gap-2">
             <Tab
-              to="/"
-              label="Dashboard"
-              icon={<Gauge className="h-4 w-4" />}
-            />
-            <Tab
               to="/endpoints"
               label="Endpoints"
               icon={<ListTree className="h-4 w-4" />}
@@ -638,7 +599,6 @@ export function App() {
               label="OpenAPI"
               icon={<FileJson className="h-4 w-4" />}
             />
-            <Tab to="/logs" label="Logs" icon={<Logs className="h-4 w-4" />} />
             <Tab
               to="/settings"
               label="Settings"
@@ -661,12 +621,6 @@ export function App() {
             <div className="mb-4 text-sm font-semibold">Navigation</div>
             <div className="flex flex-col gap-2">
               <Tab
-                to="/"
-                label="Dashboard"
-                icon={<Gauge className="h-4 w-4" />}
-                onClick={() => setMobileMenuOpen(false)}
-              />
-              <Tab
                 to="/endpoints"
                 label="Endpoints"
                 icon={<ListTree className="h-4 w-4" />}
@@ -682,12 +636,6 @@ export function App() {
                 to="/openapi"
                 label="OpenAPI"
                 icon={<FileJson className="h-4 w-4" />}
-                onClick={() => setMobileMenuOpen(false)}
-              />
-              <Tab
-                to="/logs"
-                label="Logs"
-                icon={<Logs className="h-4 w-4" />}
                 onClick={() => setMobileMenuOpen(false)}
               />
               <Tab
@@ -716,6 +664,11 @@ export function App() {
                 openApiFile={openApiFile}
                 setOpenApiFile={setOpenApiFile}
                 uploadFile={uploadFile}
+                requests={requests}
+                misses={misses}
+                clearLogs={clearLogsWithConfirm}
+                clearMisses={clearMissesWithConfirm}
+                setPromptDialog={setPromptDialog}
               />
             }
           />
@@ -780,20 +733,6 @@ export function App() {
             }
           />
           <Route
-            path="/logs"
-            element={
-              <LogsPage
-                requests={requests}
-                misses={misses}
-                loadRequests={loadRequests}
-                clearLogs={clearLogsWithConfirm}
-                loadMisses={loadMisses}
-                clearMisses={clearMissesWithConfirm}
-                setPromptDialog={setPromptDialog}
-              />
-            }
-          />
-          <Route
             path="/openapi"
             element={
               <OpenApiPage
@@ -811,42 +750,13 @@ export function App() {
             path="/settings"
             element={
               <SettingsPage
-                busy={busy}
-                configError={configError}
-                saveConfig={saveConfig}
-                getAiStorePrompt={getAiStorePrompt}
-                setAiStorePrompt={setAiStorePrompt}
+                config={config}
+                context={context}
                 providerInfo={providerInfo}
-                providerName={providerName}
-                setProviderName={setProviderName}
-                providerModel={providerModel}
-                setProviderModel={setProviderModel}
-                aiSeed={aiSeed}
-                setAiSeed={setAiSeed}
-                aiTemperature={aiTemperature}
-                setAiTemperature={setAiTemperature}
-                openaiBaseUrl={openaiBaseUrl}
-                setOpenaiBaseUrl={setOpenaiBaseUrl}
-                anthropicBaseUrl={anthropicBaseUrl}
-                setAnthropicBaseUrl={setAnthropicBaseUrl}
-                ollamaBaseUrl={ollamaBaseUrl}
-                setOllamaBaseUrl={setOllamaBaseUrl}
+                busy={busy}
+                onSave={saveFullConfig}
                 loadProviders={loadProviders}
                 refreshOllamaModels={refreshOllamaModels}
-                showPromptHints={showPromptHints}
-                setShowPromptHints={setShowPromptHints}
-                promptTemplate={promptTemplate}
-                setPromptTemplate={setPromptTemplate}
-                configText={configText}
-                setConfigText={setConfigText}
-                context={context}
-                setContext={setContext}
-                saveContext={saveContext}
-                proxyEnabled={proxyEnabled}
-                setProxyEnabled={setProxyEnabled}
-                proxyTargetUrl={proxyTargetUrl}
-                setProxyTargetUrl={setProxyTargetUrl}
-                saveProxyConfig={saveProxyConfig}
               />
             }
           />

@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Settings page redesigned: structured form with grouped sections (General, AI Generation, Proxy/Record, Context, Advanced), Form/Raw toggle, single Save button enabled only when there are unsaved changes, and `beforeunload` guard against accidental navigation
+- Advanced settings (AI tuning, provider base URLs, prompt template, matching/privacy, HAR filtering) collapsed by default to reduce visual noise for regular users
+- Array config fields (`ignoredQueryParams`, `redactHeaders`, `redactBodyKeys`, all HAR filter lists) now use a pill input — type and press Enter to add, click × to remove
+- Context section has updated description and usage examples
+- Dashboard replaces Quick Actions with a live-updating Recent Requests table (full width) and a Misses table; Logs nav tab removed
+- Upload cards (Import HAR, Import OpenAPI) replaced with a drag-and-drop file drop zone; button moved below the drop zone for visual consistency at narrow widths
+- Clicking the app logo/title navigates to the dashboard; Dashboard nav tab removed
+
 ## [0.6.0] - 2026-03-30
 
 ### Added
